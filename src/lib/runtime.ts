@@ -7,6 +7,9 @@ import { StdioDeltaChat, T } from '@deltachat/jsonrpc-client';
 
 type Socket = T.Socket;
 
+type DmPolicy = 'open' | 'pairing' | 'disabled';
+type GroupPolicy = 'open' | 'allowlist' | 'disabled';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -67,8 +70,8 @@ interface RuntimeConfig {
 
 interface ChannelConfig {
   enabled: boolean;
-  dmPolicy: string;
-  groupPolicy: string;
+  dmPolicy: DmPolicy;
+  groupPolicy: GroupPolicy;
   configPath: string;
   inviteLink: string;
   rpcServerPath: string;
@@ -131,7 +134,7 @@ interface CreateAccountParams {
 }
 
 interface GatewayNotification {
-  chatId: number;
+  chatId: number | null;
   text: string;
   from: string | null;
   fromName: string | null;
@@ -283,8 +286,8 @@ class DeltaChatRuntime {
     this.gateway = null;
     this.channelConfig = {
       enabled: channelConfig.enabled !== false,
-      dmPolicy: channelConfig.dmPolicy || 'pairing',
-      groupPolicy: channelConfig.groupPolicy || 'allowlist',
+      dmPolicy: channelConfig.dmPolicy ?? 'pairing',
+      groupPolicy: channelConfig.groupPolicy ?? 'allowlist',
       configPath: channelConfig.configPath || '',
       inviteLink: channelConfig.inviteLink || '',
       rpcServerPath: channelConfig.rpcServerPath || '',
@@ -387,12 +390,12 @@ class DeltaChatRuntime {
     }
 
     await this.notifyGateway({
-      chatId: message.chatId || message.chat_id || null,
-      text: message.text,
-      from: message.from || null,
-      fromName: message.fromName || null,
-      timestamp: message.timestamp || Date.now(),
-      messageId: message.messageId || message.id || null,
+      chatId: message.chatId ?? message.chat_id ?? null,
+      text: message.text!,
+      from: message.from ?? null,
+      fromName: message.fromName ?? null,
+      timestamp: message.timestamp ?? Date.now(),
+      messageId: message.messageId ?? message.id ?? 0,
       raw: message,
     });
 
@@ -1001,6 +1004,8 @@ export {
 
 export type {
   ChannelConfig,
+  DmPolicy,
+  GroupPolicy,
   SendMessageParams,
   InboundMessageParams,
   ProfileUpdateParams,

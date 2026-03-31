@@ -1,25 +1,25 @@
 import { DeltaChatRuntime, loadRuntimeConfig } from '../lib/runtime.js';
-import type { ChannelConfig, SendMessageParams, InboundMessageParams, ProfileUpdateParams, CreateGroupParams, CreateAccountParams, Gateway } from '../lib/runtime.js';
+import type { ChannelConfig, DmPolicy, SendMessageParams, InboundMessageParams, ProfileUpdateParams, CreateGroupParams, CreateAccountParams, Gateway } from '../lib/runtime.js';
 
 const CHANNEL_ID = 'deltachat';
 
 let runtime: DeltaChatRuntime | null = null;
 
+interface DeltaChatChannelConfig extends Partial<ChannelConfig> {
+  accounts?: Record<string, Partial<PluginAccountConfig>>;
+}
+
 interface OpenClawConfig {
   channels?: {
-    deltachat?: {
-      accounts?: Record<string, Record<string, unknown>>;
-      [key: string]: unknown;
-    };
+    deltachat?: DeltaChatChannelConfig;
   };
   session?: { store?: string };
-  [key: string]: unknown;
 }
 
 interface PluginAccountConfig extends Partial<ChannelConfig> {
   accountId?: string;
   allowFrom?: string[];
-  [key: string]: unknown;
+  accounts?: Record<string, Partial<PluginAccountConfig>>;
 }
 
 interface Logger {
@@ -28,28 +28,83 @@ interface Logger {
   error?: (...args: unknown[]) => void;
 }
 
+interface ActivityEntry {
+  channel: string;
+  accountId: string;
+  direction: 'inbound' | 'outbound';
+  at: number;
+}
+
+interface PairingOpts {
+  channel: string;
+  accountId: string;
+}
+
+interface PairingRequestOpts extends PairingOpts {
+  id: string;
+  meta: { name: string };
+}
+
+interface PairingReplyOpts {
+  channel: string;
+  idLine: string;
+  code: string;
+}
+
+interface AgentRouteOpts {
+  cfg: OpenClawConfig;
+  channel: string;
+  accountId: string;
+  peer: { kind: 'group' | 'direct'; id: string };
+}
+
+interface AgentRoute {
+  agentId: string;
+  sessionKey: string;
+  accountId: string;
+}
+
+interface SessionRecordOpts {
+  storePath: string;
+  sessionKey: string;
+  ctx: Record<string, unknown>;
+  onRecordError: (err: unknown) => void;
+}
+
+interface ReplyDispatcherOpts {
+  cfg: OpenClawConfig;
+  agentId: string;
+  channel: string;
+  accountId: string;
+}
+
+interface ReplyDispatcherResult {
+  onModelSelected?: unknown;
+  [key: string]: unknown;
+}
+
 interface ChannelRuntime {
   activity?: {
-    record?: (entry: Record<string, unknown>) => void;
+    record?: (entry: ActivityEntry) => void;
   };
   pairing?: {
-    readAllowFromStore: (opts: Record<string, string>) => Promise<string[]>;
-    upsertPairingRequest: (opts: Record<string, unknown>) => Promise<{ code: string; created: boolean }>;
-    buildPairingReply?: (opts: Record<string, string>) => string | null;
+    readAllowFromStore: (opts: PairingOpts) => Promise<string[]>;
+    upsertPairingRequest: (opts: PairingRequestOpts) => Promise<{ code: string; created: boolean }>;
+    buildPairingReply?: (opts: PairingReplyOpts) => string | null;
   };
   routing?: {
-    resolveAgentRoute?: (opts: Record<string, unknown>) => { agentId: string; sessionKey: string; accountId: string };
+    resolveAgentRoute?: (opts: AgentRouteOpts) => AgentRoute;
   };
   session?: {
     resolveStorePath?: (store: string | undefined, opts: { agentId: string }) => string;
     readSessionUpdatedAt?: (opts: { storePath: string; sessionKey: string }) => number | undefined;
-    recordInboundSession?: (opts: Record<string, unknown>) => Promise<void>;
+    recordInboundSession?: (opts: SessionRecordOpts) => Promise<void>;
   };
   reply?: {
     resolveEnvelopeFormatOptions?: (cfg: OpenClawConfig) => Record<string, unknown>;
     formatAgentEnvelope?: (opts: Record<string, unknown>) => string;
     finalizeInboundContext?: (opts: Record<string, unknown>) => Record<string, unknown>;
-    createReplyDispatcherWithTyping?: (opts: Record<string, unknown>) => Record<string, unknown>;
+    createReplyDispatcherWithTyping?: (opts: ReplyDispatcherOpts) => ReplyDispatcherResult;
     dispatchReplyWithBufferedBlockDispatcher?: (opts: Record<string, unknown>) => Promise<void>;
   };
 }
@@ -109,7 +164,7 @@ export default {
     media: true,
     reactions: true,
     threads: false,
-    nativeCommands: false,
+    nativeCommands: true,
     blockStreaming: false,
   },
 
@@ -159,7 +214,7 @@ export default {
       const selfEmail = instance.account?.email?.toLowerCase() ?? '';
 
       // Resolve DM policy from config
-      const dmPolicy = account.dmPolicy ?? 'pairing';
+      const dmPolicy: DmPolicy = account.dmPolicy ?? 'pairing';
 
       // Message listener loop
       const abortSignal: AbortSignal = ctx.abortSignal;
@@ -316,7 +371,7 @@ export default {
               }
 
               if (cr?.reply?.dispatchReplyWithBufferedBlockDispatcher) {
-                const { onModelSelected, ...replyPipeline } = (cr.reply as Record<string, Function>).createReplyDispatcherWithTyping?.({
+                const { onModelSelected, ...replyPipeline } = cr.reply.createReplyDispatcherWithTyping?.({
                   cfg,
                   agentId: route.agentId,
                   channel: CHANNEL_ID,

@@ -5,9 +5,11 @@ import path from 'path';
 import { DeltaChatRuntime, loadRuntimeConfig } from '../lib/runtime.js';
 import type { T } from '@deltachat/jsonrpc-client';
 
+type CliArgValue = string | boolean | string[];
+
 interface CliArgs {
   _: string[];
-  [key: string]: string | boolean | string[];
+  [key: string]: CliArgValue;
 }
 
 interface ChatSummary {
@@ -120,7 +122,7 @@ function parseArgs(argv: string[]): CliArgs {
   return args;
 }
 
-function requireNumber(value: string | boolean | string[] | undefined, name: string): number {
+function requireNumber(value: CliArgValue | undefined, name: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) {
     throw new Error(`${name} must be a non-negative integer`);
@@ -156,7 +158,7 @@ function summarizeText(value: string, max = 72): string {
   return `${text.slice(0, max - 1)}\u2026`;
 }
 
-function parseIdList(value: string | boolean | string[] | undefined, name: string): number[] {
+function parseIdList(value: CliArgValue | undefined, name: string): number[] {
   const items = String(value || '')
     .split(',')
     .map((item) => item.trim())
@@ -169,7 +171,7 @@ function parseIdList(value: string | boolean | string[] | undefined, name: strin
   return items.map((item) => requireNumber(item, name));
 }
 
-function parseStringList(value: string | boolean | string[] | undefined): string[] {
+function parseStringList(value: CliArgValue | undefined): string[] {
   return String(value || '')
     .split(',')
     .map((item) => item.trim())
@@ -546,9 +548,16 @@ async function joinQr(runtime: DeltaChatRuntime, options: CliArgs): Promise<void
   console.log(`joined via QR kind=${result.kind} chat=${result.chatId}`);
 }
 
+interface QrPayload {
+  chatId: number | null;
+  qr: string;
+  svg?: string;
+  svgPath?: string;
+}
+
 async function showQr(runtime: DeltaChatRuntime, options: CliArgs): Promise<void> {
   const chatId = options.chat ? requireNumber(options.chat as string, 'chat') : null;
-  const payload = await runtime.getSecureJoinQr(chatId, Boolean(options['svg-path'])) as { chatId: number | null; qr: string; svg?: string; svgPath?: string };
+  const payload: QrPayload = await runtime.getSecureJoinQr(chatId, Boolean(options['svg-path']));
 
   if (options['svg-path']) {
     const svgPath = path.resolve(options['svg-path'] as string);
