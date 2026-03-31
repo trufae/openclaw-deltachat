@@ -20,6 +20,7 @@
   },
   "keywords": ["openclaw", "delta-chat", "messaging"],
   "author": "r2claw",
+  "type": "module",
   "license": "MIT",
   "dependencies": {
     "@deltachat/jsonrpc-client": "^1.0.0"

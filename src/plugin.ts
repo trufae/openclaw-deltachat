@@ -1,11 +1,8 @@
-#!/usr/bin/env node
-'use strict';
+import { DeltaChatRuntime, loadRuntimeConfig } from './runtime.js';
 
-const { DeltaChatRuntime, loadRuntimeConfig } = require('./runtime');
+let runtime: DeltaChatRuntime | null = null;
 
-let runtime = null;
-
-function getRuntime(channelConfig) {
+function getRuntime(channelConfig: any): DeltaChatRuntime {
   if (!runtime) {
     runtime = new DeltaChatRuntime(channelConfig || {});
   } else if (channelConfig && Object.keys(channelConfig).length > 0) {
@@ -15,7 +12,7 @@ function getRuntime(channelConfig) {
   return runtime;
 }
 
-module.exports = {
+export default {
   id: 'deltachat',
   name: 'Delta Chat',
   version: '1.1.0',
@@ -30,7 +27,7 @@ module.exports = {
     pythonPath: '',
   },
 
-  async init(gateway, channelConfig = {}) {
+  async init(gateway: any, channelConfig: any = {}) {
     const instance = getRuntime(channelConfig);
     await instance.init(gateway);
     return instance.getStatus();
@@ -43,73 +40,73 @@ module.exports = {
     }
   },
 
-  async send(channelConfig = {}, message = {}) {
+  async send(channelConfig: any = {}, message: any = {}) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.send(message);
   },
 
-  async handleMessage(channelConfig = {}, message = {}) {
+  async handleMessage(channelConfig: any = {}, message: any = {}) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.handleMessage(message);
   },
 
-  async updateProfile(channelConfig = {}, profile = {}) {
+  async updateProfile(channelConfig: any = {}, profile: any = {}) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.updateProfile(profile);
   },
 
-  async getChatInfo(channelConfig = {}, chatId) {
+  async getChatInfo(channelConfig: any = {}, chatId: any) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.getChatInfo(chatId);
   },
 
-  async createGroup(channelConfig = {}, options = {}) {
+  async createGroup(channelConfig: any = {}, options: any = {}) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.createGroup(options);
   },
 
-  async renameChat(channelConfig = {}, chatId, newName) {
+  async renameChat(channelConfig: any = {}, chatId: any, newName: string) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.renameChat(chatId, newName);
   },
 
-  async leaveGroup(channelConfig = {}, chatId) {
+  async leaveGroup(channelConfig: any = {}, chatId: any) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.leaveGroup(chatId);
   },
 
-  async saveAttachment(channelConfig = {}, messageId, destinationPath) {
+  async saveAttachment(channelConfig: any = {}, messageId: any, destinationPath: string) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.saveAttachment(messageId, destinationPath);
   },
 
-  async editMessage(channelConfig = {}, messageId, newText) {
+  async editMessage(channelConfig: any = {}, messageId: any, newText: string) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.editMessage(messageId, newText);
   },
 
-  async reactToMessage(channelConfig = {}, messageId, reaction) {
+  async reactToMessage(channelConfig: any = {}, messageId: any, reaction: any) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.reactToMessage(messageId, reaction);
   },
 
-  async getSecureJoinQr(channelConfig = {}, chatId, withSvg = false) {
+  async getSecureJoinQr(channelConfig: any = {}, chatId: any, withSvg = false) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.getSecureJoinQr(chatId, withSvg);
   },
 
-  async joinQr(channelConfig = {}, qrText) {
+  async joinQr(channelConfig: any = {}, qrText: string) {
     const instance = getRuntime(channelConfig);
     await instance.init();
     return instance.joinQr(qrText);
@@ -124,7 +121,7 @@ module.exports = {
           configured: config.accounts.length > 0,
           account: config.accounts[0] ? config.accounts[0].email : null,
         };
-      } catch (error) {
+      } catch (error: any) {
         return {
           running: false,
           configured: false,

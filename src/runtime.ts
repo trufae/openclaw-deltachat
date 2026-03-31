@@ -1,17 +1,19 @@
-#!/usr/bin/env node
-'use strict';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { spawn, ChildProcess } from 'child_process';
+import { fileURLToPath } from 'url';
+import { StdioDeltaChat } from '@deltachat/jsonrpc-client';
 
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { spawn } = require('child_process');
-const { StdioDeltaChat } = require('@deltachat/jsonrpc-client');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const DEFAULT_CONFIG_FILE = 'deltachat-config.json';
 const DEFAULT_PLUGIN_DIR = path.resolve(__dirname, '..');
 const DEFAULT_RPC_SCRIPT = path.join(os.homedir(), '.venv', 'deltachat', 'bin', 'deltachat-rpc-server');
 const DEFAULT_PYTHON = path.join(os.homedir(), '.venv', 'deltachat', 'bin', 'python');
-function expandHome(value) {
+
+function expandHome(value: any): any {
   if (typeof value !== 'string' || value.length === 0) {
     return value;
   }
@@ -27,7 +29,7 @@ function expandHome(value) {
   return value;
 }
 
-function resolveConfigPath(customPath) {
+function resolveConfigPath(customPath?: string): string {
   const requested = customPath
     || process.env.OPENCLAW_DELTACHAT_CONFIG
     || process.env.DELTACHAT_CONFIG;
@@ -42,11 +44,11 @@ function resolveConfigPath(customPath) {
     : path.resolve(DEFAULT_PLUGIN_DIR, expanded);
 }
 
-function readJsonFile(filePath) {
+function readJsonFile(filePath: string): any {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function isSqliteDatabase(filePath) {
+function isSqliteDatabase(filePath: string): boolean {
   if (!filePath || !fs.existsSync(filePath)) {
     return false;
   }
@@ -70,7 +72,7 @@ function isSqliteDatabase(filePath) {
   }
 }
 
-function normalizeAccount(account, index) {
+function normalizeAccount(account: any, index: number): any {
   const dataDir = expandHome(account.data_dir || '');
   const databasePath = expandHome(
     account.database_path
@@ -97,7 +99,7 @@ function normalizeAccount(account, index) {
   };
 }
 
-function validateConfig(config, configPath) {
+function validateConfig(config: any, configPath: string): void {
   if (!config || typeof config !== 'object') {
     throw new Error(`Invalid Delta Chat config in ${configPath}`);
   }
@@ -113,7 +115,7 @@ function validateConfig(config, configPath) {
   }
 }
 
-function loadRuntimeConfig(customPath) {
+function loadRuntimeConfig(customPath?: string): any {
   const configPath = resolveConfigPath(customPath);
   const loaded = readJsonFile(configPath);
   validateConfig(loaded, configPath);
@@ -128,7 +130,17 @@ function loadRuntimeConfig(customPath) {
 }
 
 class DeltaChatRuntime {
-  constructor(channelConfig = {}) {
+  gateway: any;
+  channelConfig: any;
+  runtimeConfig: any;
+  rpcProcess: ChildProcess | null;
+  client: any;
+  account: any;
+  running: boolean;
+  listenLoop: Promise<void> | null;
+  stopRequested: boolean;
+
+  constructor(channelConfig: any = {}) {
     this.gateway = null;
     this.channelConfig = {
       enabled: channelConfig.enabled !== false,
@@ -148,11 +160,11 @@ class DeltaChatRuntime {
     this.stopRequested = false;
   }
 
-  updateChannelConfig(channelConfig = {}) {
+  updateChannelConfig(channelConfig: any = {}): void {
     this.channelConfig = { ...this.channelConfig, ...channelConfig };
   }
 
-  async init(gateway) {
+  async init(gateway?: any): Promise<void> {
     if (gateway) {
       this.gateway = gateway;
     }
@@ -169,12 +181,12 @@ class DeltaChatRuntime {
 
     this.running = true;
     this.stopRequested = false;
-    this.listenLoop = this.listenForMessages().catch((error) => {
+    this.listenLoop = this.listenForMessages().catch((error: any) => {
       console.error('[Delta Chat] listener stopped:', error.message);
     });
   }
 
-  getStatus() {
+  getStatus(): any {
     return {
       running: this.running,
       configured: Boolean(this.account),
@@ -183,7 +195,7 @@ class DeltaChatRuntime {
     };
   }
 
-  async send(message = {}) {
+  async send(message: any = {}): Promise<any> {
     const text = message.text || message.body;
     const chatId = Number(message.chatId || message.chat_id || 0);
 
@@ -215,7 +227,7 @@ class DeltaChatRuntime {
     return messageId;
   }
 
-  async handleMessage(message = {}) {
+  async handleMessage(message: any = {}): Promise<null> {
     if (!message || !message.text) {
       return null;
     }
@@ -233,10 +245,10 @@ class DeltaChatRuntime {
     return null;
   }
 
-  async updateProfile(profile = {}) {
+  async updateProfile(profile: any = {}): Promise<any> {
     await this.assertReady();
 
-    const updates = {};
+    const updates: any = {};
 
     if (Object.prototype.hasOwnProperty.call(profile, 'displayName')) {
       updates.displayname = profile.displayName || null;
@@ -269,7 +281,7 @@ class DeltaChatRuntime {
     };
   }
 
-  async getChatInfo(chatId) {
+  async getChatInfo(chatId: any): Promise<any> {
     await this.assertReady();
 
     const resolvedChatId = Number(chatId || 0);
@@ -291,7 +303,7 @@ class DeltaChatRuntime {
     };
   }
 
-  async createGroup(options = {}) {
+  async createGroup(options: any = {}): Promise<any> {
     await this.assertReady();
 
     if (!options.name) {
@@ -317,7 +329,7 @@ class DeltaChatRuntime {
     return this.getChatInfo(chatId);
   }
 
-  async renameChat(chatId, newName) {
+  async renameChat(chatId: any, newName: string): Promise<any> {
     await this.assertReady();
 
     if (!newName) {
@@ -328,13 +340,13 @@ class DeltaChatRuntime {
     return this.getChatInfo(chatId);
   }
 
-  async leaveGroup(chatId) {
+  async leaveGroup(chatId: any): Promise<any> {
     await this.assertReady();
     await this.client.rpc.leaveGroup(this.account.accountId, Number(chatId));
     return { chatId: Number(chatId), left: true };
   }
 
-  async saveAttachment(messageId, destinationPath) {
+  async saveAttachment(messageId: any, destinationPath: string): Promise<any> {
     await this.assertReady();
 
     if (!destinationPath) {
@@ -346,7 +358,7 @@ class DeltaChatRuntime {
     return { messageId: Number(messageId), path: resolvedPath };
   }
 
-  async editMessage(messageId, newText) {
+  async editMessage(messageId: any, newText: string): Promise<any> {
     await this.assertReady();
 
     if (!newText) {
@@ -357,7 +369,7 @@ class DeltaChatRuntime {
     return this.client.rpc.getMessage(this.account.accountId, Number(messageId));
   }
 
-  async reactToMessage(messageId, reaction) {
+  async reactToMessage(messageId: any, reaction: any): Promise<any> {
     await this.assertReady();
 
     const parts = Array.isArray(reaction)
@@ -373,7 +385,7 @@ class DeltaChatRuntime {
     };
   }
 
-  async getSecureJoinQr(chatId, withSvg = false) {
+  async getSecureJoinQr(chatId: any, withSvg = false): Promise<any> {
     await this.assertReady();
 
     const resolvedChatId = chatId ? Number(chatId) : null;
@@ -386,7 +398,7 @@ class DeltaChatRuntime {
     return { chatId: resolvedChatId, qr };
   }
 
-  async joinQr(qrText) {
+  async joinQr(qrText: string): Promise<any> {
     await this.assertReady();
 
     if (!qrText) {
@@ -410,14 +422,14 @@ class DeltaChatRuntime {
     throw new Error(`QR kind not joinable via CLI: ${qr.kind}`);
   }
 
-  async stop() {
+  async stop(): Promise<void> {
     this.stopRequested = true;
     this.running = false;
 
     if (this.account && this.client) {
       try {
         await withTimeout(this.client.rpc.stopIo(this.account.accountId), 2000, 'stopIo');
-      } catch (error) {
+      } catch (error: any) {
         console.error('[Delta Chat] stopIo failed:', error.message);
       }
     }
@@ -441,7 +453,7 @@ class DeltaChatRuntime {
     if (this.rpcProcess) {
       const rpcProcess = this.rpcProcess;
       this.rpcProcess = null;
-      const exitPromise = new Promise((resolve) => {
+      const exitPromise = new Promise<void>((resolve) => {
         rpcProcess.once('exit', resolve);
       });
       rpcProcess.kill('SIGTERM');
@@ -453,13 +465,13 @@ class DeltaChatRuntime {
     }
   }
 
-  async assertReady() {
+  async assertReady(): Promise<void> {
     if (!this.running) {
       await this.init();
     }
   }
 
-  getRpcCommand() {
+  getRpcCommand(): string[] {
     const configured = this.runtimeConfig.runtime.rpc_command;
     if (Array.isArray(configured) && configured.length > 0) {
       return configured;
@@ -486,7 +498,7 @@ class DeltaChatRuntime {
     throw new Error(`Delta Chat RPC server not found. Checked ${scriptPath} and ${pythonPath}`);
   }
 
-  async startRpcServer() {
+  async startRpcServer(): Promise<void> {
     if (this.rpcProcess) {
       return;
     }
@@ -499,12 +511,12 @@ class DeltaChatRuntime {
       stdio: ['pipe', 'pipe', 'inherit'],
     });
 
-    this.rpcProcess.once('error', (error) => {
+    this.rpcProcess.once('error', (error: any) => {
       console.error('[Delta Chat] RPC process error:', error.message);
     });
   }
 
-  async connectClient() {
+  async connectClient(): Promise<void> {
     if (!this.rpcProcess || !this.rpcProcess.stdin || !this.rpcProcess.stdout) {
       throw new Error('Delta Chat RPC process is not available');
     }
@@ -523,14 +535,14 @@ class DeltaChatRuntime {
     throw new Error('Delta Chat RPC server did not become ready');
   }
 
-  async ensureAccount() {
+  async ensureAccount(): Promise<void> {
     const configuredAccount = this.runtimeConfig.accounts[0];
     const accounts = await this.client.rpc.getAllAccounts();
 
-    let account = accounts.find((entry) => (
+    let account = accounts.find((entry: any) => (
       configuredAccount.accountId > 0
       && entry.id === configuredAccount.accountId
-    )) || accounts.find((entry) => (
+    )) || accounts.find((entry: any) => (
       entry.addr
       && entry.addr.toLowerCase() === configuredAccount.email.toLowerCase()
     ));
@@ -539,7 +551,7 @@ class DeltaChatRuntime {
       try {
         const migratedId = await this.client.rpc.migrateAccount(configuredAccount.databasePath);
         account = await this.client.rpc.getAccountInfo(migratedId);
-      } catch (error) {
+      } catch (error: any) {
         console.error('[Delta Chat] migrateAccount failed:', error.message);
       }
     }
@@ -593,7 +605,7 @@ class DeltaChatRuntime {
     };
   }
 
-  async joinInviteLink() {
+  async joinInviteLink(): Promise<void> {
     const inviteLink = this.channelConfig.inviteLink || this.runtimeConfig.inviteLink;
     if (!inviteLink || !this.client || !this.account) {
       return;
@@ -616,12 +628,12 @@ class DeltaChatRuntime {
       }
 
       console.log(`[Delta Chat] Invite link check result: ${qr.kind}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Delta Chat] Failed to process invite link:', error.message);
     }
   }
 
-  async listenForMessages() {
+  async listenForMessages(): Promise<void> {
     while (!this.stopRequested && this.client && this.account) {
       try {
         const messageIds = await this.client.rpc.waitNextMsgs(this.account.accountId);
@@ -648,7 +660,7 @@ class DeltaChatRuntime {
             raw: message,
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         if (!this.stopRequested) {
           console.error('[Delta Chat] waitNextMsgs failed:', error.message);
           await sleep(1000);
@@ -657,7 +669,7 @@ class DeltaChatRuntime {
     }
   }
 
-  async getOrCreateChatByEmail(email) {
+  async getOrCreateChatByEmail(email: string): Promise<any> {
     let contactId = await this.client.rpc.lookupContactIdByAddr(this.account.accountId, email);
     if (!contactId) {
       contactId = await this.client.rpc.createContact(this.account.accountId, email, null);
@@ -671,7 +683,7 @@ class DeltaChatRuntime {
     return this.client.rpc.createChatByContactId(this.account.accountId, contactId);
   }
 
-  async notifyGateway(payload) {
+  async notifyGateway(payload: any): Promise<void> {
     if (!this.gateway) {
       console.log('[Delta Chat] message:', payload.text);
       return;
@@ -694,11 +706,11 @@ class DeltaChatRuntime {
   }
 }
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function withTimeout(promise, timeoutMs, label) {
+function withTimeout(promise: Promise<any>, timeoutMs: number, label: string): Promise<any> {
   return Promise.race([
     promise,
     new Promise((_, reject) => {
@@ -707,7 +719,7 @@ function withTimeout(promise, timeoutMs, label) {
   ]);
 }
 
-module.exports = {
+export {
   DeltaChatRuntime,
   loadRuntimeConfig,
 };

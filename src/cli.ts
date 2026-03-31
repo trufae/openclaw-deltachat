@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const { DeltaChatRuntime, loadRuntimeConfig } = require('./runtime.js');
+import fs from 'fs';
+import path from 'path';
+import { DeltaChatRuntime, loadRuntimeConfig } from './runtime.js';
 
-function printHelp() {
+function printHelp(): void {
   console.log(`Delta Chat CLI
 
 Usage:
@@ -47,8 +46,8 @@ Examples:
 `);
 }
 
-function parseArgs(argv) {
-  const args = { _: [] };
+function parseArgs(argv: string[]): any {
+  const args: any = { _: [] };
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -75,7 +74,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function requireNumber(value, name) {
+function requireNumber(value: any, name: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) {
     throw new Error(`${name} must be a non-negative integer`);
@@ -83,7 +82,7 @@ function requireNumber(value, name) {
   return parsed;
 }
 
-function formatTimestamp(value) {
+function formatTimestamp(value: any): string {
   if (!value) {
     return '-';
   }
@@ -92,7 +91,7 @@ function formatTimestamp(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
 }
 
-function formatSender(message) {
+function formatSender(message: any): string {
   if (!message || !message.sender) {
     return '-';
   }
@@ -103,7 +102,7 @@ function formatSender(message) {
     || String(message.fromId || '-');
 }
 
-function summarizeText(value, max = 72) {
+function summarizeText(value: any, max = 72): string {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
   if (text.length <= max) {
     return text;
@@ -111,7 +110,7 @@ function summarizeText(value, max = 72) {
   return `${text.slice(0, max - 1)}…`;
 }
 
-function parseIdList(value, name) {
+function parseIdList(value: any, name: string): number[] {
   const items = String(value || '')
     .split(',')
     .map((item) => item.trim())
@@ -124,14 +123,14 @@ function parseIdList(value, name) {
   return items.map((item) => requireNumber(item, name));
 }
 
-function parseStringList(value) {
+function parseStringList(value: any): string[] {
   return String(value || '')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-async function createSession(configPath) {
+async function createSession(configPath?: string): Promise<DeltaChatRuntime> {
   const runtime = new DeltaChatRuntime({ configPath: configPath || '' });
   runtime.runtimeConfig = loadRuntimeConfig(configPath);
 
@@ -147,16 +146,16 @@ async function createSession(configPath) {
   }
 }
 
-async function withSession(configPath, fn) {
+async function withSession(configPath: string | undefined, fn: (runtime: DeltaChatRuntime) => Promise<void>): Promise<void> {
   const runtime = await createSession(configPath);
   try {
-    return await fn(runtime);
+    await fn(runtime);
   } finally {
     await runtime.stop();
   }
 }
 
-async function listChats(runtime, options) {
+async function listChats(runtime: DeltaChatRuntime, options: any): Promise<void> {
   const accountId = runtime.account.accountId;
   const limit = options.limit ? requireNumber(options.limit, 'limit') : 20;
   const entries = await runtime.client.rpc.getChatlistEntries(
@@ -167,7 +166,7 @@ async function listChats(runtime, options) {
   );
   const selectedEntries = entries.slice(0, limit);
   const items = await runtime.client.rpc.getChatlistItemsByEntries(accountId, selectedEntries);
-  const chats = [];
+  const chats: any[] = [];
 
   for (const entryId of selectedEntries) {
     const item = items[entryId];
@@ -211,7 +210,7 @@ async function listChats(runtime, options) {
   }
 }
 
-async function listMessages(runtime, options) {
+async function listMessages(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.chat) {
     throw new Error('list-messages requires --chat CHAT_ID');
   }
@@ -222,7 +221,7 @@ async function listMessages(runtime, options) {
   const chat = await runtime.client.rpc.getFullChatById(accountId, chatId);
   const messageIds = await runtime.client.rpc.getMessageIds(accountId, chatId, false, false);
   const selectedIds = messageIds.slice(0, limit);
-  const messages = [];
+  const messages: any[] = [];
 
   for (const messageId of selectedIds) {
     const message = await runtime.client.rpc.getMessage(accountId, messageId);
@@ -253,7 +252,7 @@ async function listMessages(runtime, options) {
   }
 }
 
-async function sendMessage(runtime, options) {
+async function sendMessage(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.text && !options.file) {
     throw new Error('send requires --text TEXT or --file PATH');
   }
@@ -268,8 +267,8 @@ async function sendMessage(runtime, options) {
     chatId = await runtime.getOrCreateChatByEmail(options.to);
   }
 
-  let filePath = null;
-  let fileName = null;
+  let filePath: string | null = null;
+  let fileName: string | null = null;
   if (options.file) {
     filePath = path.resolve(options.file);
     if (!fs.existsSync(filePath)) {
@@ -294,7 +293,7 @@ async function sendMessage(runtime, options) {
   console.log(`sent message ${messageId} to chat ${chatId}`);
 }
 
-async function deleteMessages(runtime, options) {
+async function deleteMessages(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.chat) {
     throw new Error('delete-messages requires --chat CHAT_ID');
   }
@@ -317,7 +316,7 @@ async function deleteMessages(runtime, options) {
   console.log(`deleted ${messageIds.length} message(s) from chat ${chatId}${options['for-all'] ? ' for all recipients' : ''}`);
 }
 
-async function setProfile(runtime, options) {
+async function setProfile(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.name && !options.avatar && !options['clear-avatar']) {
     throw new Error('set-profile requires --name NAME, --avatar PATH, or --clear-avatar');
   }
@@ -331,7 +330,7 @@ async function setProfile(runtime, options) {
   console.log(`profile updated accountId=${profile.accountId} name=${profile.displayName || '-'} avatar=${profile.avatarPath || '-'}`);
 }
 
-async function saveAttachment(runtime, options) {
+async function saveAttachment(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.message) {
     throw new Error('save-attachment requires --message MESSAGE_ID');
   }
@@ -347,7 +346,7 @@ async function saveAttachment(runtime, options) {
   console.log(`saved attachment from message ${saved.messageId} to ${saved.path}`);
 }
 
-async function editMessage(runtime, options) {
+async function editMessage(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.message) {
     throw new Error('edit-message requires --message MESSAGE_ID');
   }
@@ -363,7 +362,7 @@ async function editMessage(runtime, options) {
   console.log(`edited message ${message.id}: ${message.text}`);
 }
 
-async function reactToMessage(runtime, options) {
+async function reactToMessage(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.message) {
     throw new Error('react requires --message MESSAGE_ID');
   }
@@ -384,7 +383,7 @@ async function reactToMessage(runtime, options) {
   console.log(`reacted to message ${result.messageId} with ${result.reaction.join(' ') || '(cleared)'}`);
 }
 
-async function showChatInfo(runtime, options) {
+async function showChatInfo(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.chat) {
     throw new Error('chat-info requires --chat CHAT_ID');
   }
@@ -403,7 +402,7 @@ async function showChatInfo(runtime, options) {
     ephemeralTimer: info.ephemeralTimer,
     profileImage: info.profileImage,
     contactIds: info.contactIds,
-    contacts: info.contacts.map((contact) => ({
+    contacts: info.contacts.map((contact: any) => ({
       id: contact.id,
       name: contact.displayName || contact.name,
       address: contact.address,
@@ -435,7 +434,7 @@ async function showChatInfo(runtime, options) {
   }
 }
 
-async function createGroup(runtime, options) {
+async function createGroup(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.name) {
     throw new Error('create-group requires --name NAME');
   }
@@ -454,7 +453,7 @@ async function createGroup(runtime, options) {
   console.log(`created group ${info.id} "${info.name}" members=${info.contacts.length} protected=${info.isProtected}`);
 }
 
-async function renameChat(runtime, options) {
+async function renameChat(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.chat) {
     throw new Error('rename-chat requires --chat CHAT_ID');
   }
@@ -471,7 +470,7 @@ async function renameChat(runtime, options) {
   console.log(`renamed chat ${info.id} to "${info.name}"`);
 }
 
-async function leaveGroup(runtime, options) {
+async function leaveGroup(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.chat) {
     throw new Error('leave-group requires --chat CHAT_ID');
   }
@@ -480,7 +479,7 @@ async function leaveGroup(runtime, options) {
   console.log(`left group ${result.chatId}`);
 }
 
-async function joinQr(runtime, options) {
+async function joinQr(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.qr) {
     throw new Error('join-qr requires --qr TEXT');
   }
@@ -494,9 +493,9 @@ async function joinQr(runtime, options) {
   console.log(`joined via QR kind=${result.kind} chat=${result.chatId}`);
 }
 
-async function showQr(runtime, options) {
+async function showQr(runtime: DeltaChatRuntime, options: any): Promise<void> {
   const chatId = options.chat ? requireNumber(options.chat, 'chat') : null;
-  const payload = await runtime.getSecureJoinQr(chatId, Boolean(options['svg-path']));
+  const payload: any = await runtime.getSecureJoinQr(chatId, Boolean(options['svg-path']));
 
   if (options['svg-path']) {
     const svgPath = path.resolve(options['svg-path']);
@@ -516,7 +515,7 @@ async function showQr(runtime, options) {
   }
 }
 
-async function createChat(runtime, options) {
+async function createChat(runtime: DeltaChatRuntime, options: any): Promise<void> {
   if (!options.to) {
     throw new Error('create-chat requires --to EMAIL');
   }
@@ -525,7 +524,7 @@ async function createChat(runtime, options) {
   console.log(chatId);
 }
 
-async function receiveMessages(runtime, options) {
+async function receiveMessages(runtime: DeltaChatRuntime, options: any): Promise<void> {
   const accountId = runtime.account.accountId;
   const markSeen = !options['no-mark-seen'];
   const maxCount = options.count ? requireNumber(options.count, 'count') : Number.POSITIVE_INFINITY;
@@ -583,26 +582,26 @@ async function receiveMessages(runtime, options) {
   }
 }
 
-async function waitNextMsgsWithDeadline(runtime, timeoutMs) {
+async function waitNextMsgsWithDeadline(runtime: DeltaChatRuntime, timeoutMs: number): Promise<any[] | null> {
   if (timeoutMs <= 0) {
     return null;
   }
 
   return Promise.race([
     runtime.client.rpc.waitNextMsgs(runtime.account.accountId),
-    new Promise((resolve) => {
+    new Promise<null>((resolve) => {
       setTimeout(() => resolve(null), timeoutMs);
     }),
   ]);
 }
 
-async function showStatus(runtime, options) {
+async function showStatus(runtime: DeltaChatRuntime, options: any): Promise<void> {
   const transports = await runtime.client.rpc.listTransports(runtime.account.accountId);
   const payload = {
     accountId: runtime.account.accountId,
     email: runtime.account.email,
     configPath: runtime.runtimeConfig.configPath,
-    transports: transports.map((transport) => ({
+    transports: transports.map((transport: any) => ({
       addr: transport.addr,
       imapServer: transport.imapServer,
       smtpServer: transport.smtpServer,
@@ -621,7 +620,7 @@ async function showStatus(runtime, options) {
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const command = options._[0];
 
