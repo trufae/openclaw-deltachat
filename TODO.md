@@ -1,207 +1,203 @@
-# Delta Chat CLI / Library TODO
+# Delta Chat -- Roadmap & TODO
 
-## Current coverage
+> Tracking planned features and API coverage for the CLI, library, and OpenClaw plugin.
 
-Source lives in `src/` and generated JavaScript is emitted to `dist/` via `tsc`.
+---
 
-Implemented in the CLI (`src/cli.ts` -> `dist/cli.js`):
+## Implemented
 
-- `status`
-- `list-chats`
-- `list-messages`
-- `send`
-- `delete-messages`
-- `set-profile`
-- `save-attachment`
-- `edit-message`
-- `react`
-- `chat-info`
-- `create-group`
-- `rename-chat`
-- `leave-group`
-- `join-qr`
-- `show-qr`
-- `receive`
-- `create-chat`
+### CLI Commands (`src/cli.ts` -> `dist/cli.js`)
 
-Implemented in the library/plugin:
+- [x] `status`
+- [x] `list-chats`
+- [x] `list-messages`
+- [x] `send`
+- [x] `delete-messages`
+- [x] `set-profile`
+- [x] `save-attachment`
+- [x] `edit-message`
+- [x] `react`
+- [x] `chat-info`
+- [x] `create-group`
+- [x] `rename-chat`
+- [x] `leave-group`
+- [x] `join-qr`
+- [x] `show-qr`
+- [x] `receive`
+- [x] `create-chat`
 
-- send messages
-- receive messages through the runtime listener
-- create chats by email
-- update local profile name/avatar
-- save attachments
-- edit sent messages
-- react to messages
-- inspect chats
-- create groups
-- rename chats
-- leave groups
-- generate secure-join QR codes
-- join QR-based secure-join flows
+### Library / Plugin
 
-## High-priority missing features
+- [x] Send messages
+- [x] Receive messages through the runtime listener
+- [x] Create chats by email
+- [x] Update local profile name/avatar
+- [x] Save attachments
+- [x] Edit sent messages
+- [x] React to messages
+- [x] Inspect chats
+- [x] Create groups
+- [x] Rename chats
+- [x] Leave groups
+- [x] Generate secure-join QR codes
+- [x] Join QR-based secure-join flows
 
-These are the most useful next additions for day-to-day usage:
+---
 
-- `search-messages`
-- `list-contacts`
-- `create-contact`
-- `message-info`
+## High Priority
 
-## Chat management
+> Most useful next additions for day-to-day usage.
 
-- accept chats
-- block chats
-- delete chats
-- create broadcast lists
-- set group avatar
-- set chat visibility
-- set disappearing message timer
-- get disappearing message timer
-- mute/unmute chats
-- get similar chat IDs
-- list chat members
-- list past chat members
-- add contact to chat
-- remove contact from chat
-- mark chat noticed
-- get first unread message of chat
+- [ ] `search-messages` -- full-text search across chats
+- [ ] `list-contacts` -- list known contacts
+- [ ] `create-contact` -- create a new contact entry
+- [ ] `message-info` -- detailed info for a single message
 
-## Contact management
+---
 
-- list contacts
-- get contact by ID
-- get contacts by IDs
-- create contact
-- rename contact
-- delete contact
-- block contact
-- unblock contact
-- list blocked contacts
-- reset contact encryption
-- inspect contact encryption info
-- import vCard from file
-- import vCard contents
-- export vCard
-- set draft vCard
+## Chat Management
 
-## Message operations
+- [ ] Accept chats
+- [ ] Block chats
+- [ ] Delete chats
+- [ ] Create broadcast lists
+- [ ] Set group avatar
+- [ ] Set chat visibility (pinned / archived)
+- [ ] Set disappearing message timer
+- [ ] Get disappearing message timer
+- [ ] Mute / unmute chats
+- [ ] Get similar chat IDs
+- [ ] List chat members
+- [ ] List past chat members
+- [ ] Add contact to chat
+- [ ] Remove contact from chat
+- [ ] Mark chat noticed
+- [ ] Get first unread message of chat
 
-- search messages
-- load multiple messages in one call
-- get message HTML
-- get detailed message info
-- get message info object
-- get read receipts
-- forward messages
-- resend messages
-- get reactions
-- save messages
-- download full message
-- send quoted replies
-- send locations
-- send stickers
-- send via raw `sendMsg`
-- get fresh/unread message counts
-- get message list items
-- convert search results to detailed output
+## Contact Management
+
+- [ ] List contacts
+- [ ] Get contact by ID
+- [ ] Get contacts by IDs
+- [ ] Create contact
+- [ ] Rename contact
+- [ ] Delete contact
+- [ ] Block / unblock contact
+- [ ] List blocked contacts
+- [ ] Reset contact encryption
+- [ ] Inspect contact encryption info
+- [ ] Import vCard from file
+- [ ] Import vCard contents
+- [ ] Export vCard
+- [ ] Set draft vCard
+
+## Message Operations
+
+- [ ] Search messages
+- [ ] Load multiple messages in one call
+- [ ] Get message HTML
+- [ ] Get detailed message info / info object
+- [ ] Get read receipts
+- [ ] Forward messages
+- [ ] Resend messages
+- [ ] Get reactions
+- [ ] Save messages
+- [ ] Download full message
+- [ ] Send quoted replies
+- [ ] Send locations
+- [ ] Send stickers
+- [ ] Send via raw `sendMsg`
+- [ ] Get fresh / unread message counts
+- [ ] Get message list items
+- [ ] Convert search results to detailed output
 
 ## Drafts
 
-- set draft
-- send draft
-- get draft
-- remove draft
+- [ ] Set draft
+- [ ] Send draft
+- [ ] Get draft
+- [ ] Remove draft
 
-## Media and files
+## Media & Files
 
-- browse chat media by type
-- better attachment metadata output
-- download attachment helper
-- sticker folder/list/save commands
+- [ ] Browse chat media by type
+- [ ] Better attachment metadata output
+- [ ] Download attachment helper
+- [ ] Sticker folder / list / save commands
 
-## QR / secure join
+## QR / Secure Join
 
-- check QR
-- set config from QR
-- add transport from QR
+- [ ] Check QR
+- [ ] Set config from QR
+- [ ] Add transport from QR
 
-## Account and configuration
+## Account & Configuration
 
-- list accounts
-- select account
-- remove account
-- configure account
-- list transports
-- delete transport
-- stop ongoing process
-- get provider info
-- get account info
-- get account file size
-- get selected account
-- get all account IDs
-- get raw config value
-- set raw config value
-- batch get config
-- batch set config
-- validate email
+- [ ] List accounts
+- [ ] Select account
+- [ ] Remove account
+- [ ] Configure account
+- [ ] List transports
+- [ ] Delete transport
+- [ ] Stop ongoing process
+- [ ] Get provider info
+- [ ] Get account info / file size
+- [ ] Get selected account / all account IDs
+- [ ] Get / set raw config value
+- [ ] Batch get / set config
+- [ ] Validate email
 
-## Backup and key management
+## Backup & Key Management
 
-- export backup
-- import backup
-- provide backup
-- get backup QR
-- get backup QR SVG
-- receive backup from QR
-- export self keys
-- import self keys
-- initiate Autocrypt key transfer
-- continue Autocrypt key transfer
+- [ ] Export / import backup
+- [ ] Provide backup
+- [ ] Get backup QR / QR SVG
+- [ ] Receive backup from QR
+- [ ] Export / import self keys
+- [ ] Initiate Autocrypt key transfer
+- [ ] Continue Autocrypt key transfer
 
-## Connectivity and maintenance
+## Connectivity & Maintenance
 
-- manual background fetch
-- start IO for all accounts
-- stop IO for all accounts
-- network poke / `maybeNetwork`
-- get connectivity state
-- get connectivity HTML
-- estimate auto-deletion count
+- [ ] Manual background fetch
+- [ ] Start / stop IO for all accounts
+- [ ] Network poke / `maybeNetwork`
+- [ ] Get connectivity state / HTML
+- [ ] Estimate auto-deletion count
 
 ## Webxdc
 
-- initialize Webxdc integration
-- set Webxdc integration
-- get Webxdc info
-- get Webxdc href
-- get Webxdc blob
-- get Webxdc status updates
-- send Webxdc status update
-- send Webxdc realtime data
-- send Webxdc realtime advertisement
-- leave Webxdc realtime
+- [ ] Initialize Webxdc integration
+- [ ] Set Webxdc integration
+- [ ] Get Webxdc info / href / blob
+- [ ] Get Webxdc status updates
+- [ ] Send Webxdc status update
+- [ ] Send Webxdc realtime data / advertisement
+- [ ] Leave Webxdc realtime
 
-## Diagnostics and developer utilities
+## Diagnostics & Developer Utilities
 
-- get system info
-- get account info dump
-- draft self-report
-- raw RPC helper for debugging
+- [ ] Get system info
+- [ ] Get account info dump
+- [ ] Draft self-report
+- [ ] Raw RPC helper for debugging
 
-## Library API gaps
+---
+
+## Library API Gaps
 
 The runtime/plugin should eventually expose wrappers for:
 
-- contact CRUD
-- chat CRUD and group membership management
-- QR / secure-join flows
-- backup / key import-export
-- connectivity / diagnostics
+- [ ] Contact CRUD
+- [ ] Chat CRUD and group membership management
+- [ ] QR / secure-join flows
+- [ ] Backup / key import-export
+- [ ] Connectivity / diagnostics
 
-## Notes
+---
 
-- Prefer implementing new CLI commands on top of `src/runtime.ts` methods instead of embedding all RPC calls directly in `src/cli.ts`.
-- Keep command output human-readable by default and add `--json` where structured output matters.
-- For destructive operations, consider explicit flags such as `--for-all` or confirmation-like argument requirements.
+## Design Guidelines
+
+1. **Build on the runtime** -- implement new CLI commands on top of `src/runtime.ts` methods instead of embedding RPC calls directly in `src/cli.ts`.
+2. **Human-readable by default** -- add `--json` flags where structured output is useful.
+3. **Explicit destructive flags** -- use `--for-all`, confirmation arguments, or similar guards for irreversible operations.
