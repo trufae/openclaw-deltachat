@@ -54,6 +54,7 @@ node cli.js list-messages --chat 42 --limit 20
 node cli.js send --to friend@example.org --text "hello from the CLI"
 node cli.js send --chat 42 --file ./photo.jpg --text "hello from the CLI"
 node cli.js delete-messages --chat 42 --ids 101,102
+node cli.js set-profile --name "OpenClaw Bot" --avatar ./avatar.jpg
 node cli.js receive --json
 ```
 
@@ -65,8 +66,34 @@ Supported commands:
 - `send (--chat CHAT_ID | --to EMAIL) --text TEXT`
 - `send (--chat CHAT_ID | --to EMAIL) [--text TEXT] [--file PATH] [--name NAME]`
 - `delete-messages --chat CHAT_ID --ids ID[,ID...] [--for-all]`
+- `set-profile [--name NAME] [--avatar PATH] [--clear-avatar]`
 - `receive [--timeout SECONDS] [--count N] [--json] [--no-mark-seen]`
 - `create-chat --to EMAIL`
+
+## Library API
+
+The plugin/runtime can also update the account profile:
+
+```js
+const plugin = require('./plugin');
+
+await plugin.updateProfile(
+  { configPath: '/path/to/deltachat-config.json' },
+  {
+    displayName: 'OpenClaw Bot',
+    avatarPath: '/path/to/avatar.jpg',
+  }
+);
+```
+
+To clear the avatar:
+
+```js
+await plugin.updateProfile(
+  { configPath: '/path/to/deltachat-config.json' },
+  { clearAvatar: true }
+);
+```
 
 ## Install
 

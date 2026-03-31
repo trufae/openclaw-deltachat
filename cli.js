@@ -14,6 +14,7 @@ Usage:
   node cli.js list-messages --chat CHAT_ID [--config PATH] [--json] [--limit N]
   node cli.js send (--chat CHAT_ID | --to EMAIL) [--text TEXT] [--file PATH] [--name NAME] [--config PATH]
   node cli.js delete-messages --chat CHAT_ID --ids ID[,ID...] [--for-all] [--config PATH]
+  node cli.js set-profile [--name NAME] [--avatar PATH] [--clear-avatar] [--config PATH]
   node cli.js receive [--config PATH] [--json] [--timeout SECONDS] [--count N] [--no-mark-seen]
   node cli.js create-chat --to EMAIL [--config PATH]
 
@@ -23,6 +24,7 @@ Examples:
   node cli.js send --to friend@example.org --text "hello"
   node cli.js send --chat 42 --file ./photo.jpg --text "latest"
   node cli.js delete-messages --chat 42 --ids 101,102
+  node cli.js set-profile --name "New Name" --avatar ./avatar.jpg
   node cli.js receive --json
 `);
 }
@@ -38,7 +40,7 @@ function parseArgs(argv) {
     }
 
     const key = token.slice(2);
-    if (key === 'help' || key === 'json' || key === 'no-mark-seen' || key === 'for-all') {
+    if (key === 'help' || key === 'json' || key === 'no-mark-seen' || key === 'for-all' || key === 'clear-avatar') {
       args[key] = true;
       continue;
     }
@@ -290,6 +292,20 @@ async function deleteMessages(runtime, options) {
   console.log(`deleted ${messageIds.length} message(s) from chat ${chatId}${options['for-all'] ? ' for all recipients' : ''}`);
 }
 
+async function setProfile(runtime, options) {
+  if (!options.name && !options.avatar && !options['clear-avatar']) {
+    throw new Error('set-profile requires --name NAME, --avatar PATH, or --clear-avatar');
+  }
+
+  const profile = await runtime.updateProfile({
+    displayName: options.name,
+    avatarPath: options.avatar,
+    clearAvatar: Boolean(options['clear-avatar']),
+  });
+
+  console.log(`profile updated accountId=${profile.accountId} name=${profile.displayName || '-'} avatar=${profile.avatarPath || '-'}`);
+}
+
 async function createChat(runtime, options) {
   if (!options.to) {
     throw new Error('create-chat requires --to EMAIL');
@@ -420,6 +436,9 @@ async function main() {
         return;
       case 'delete-messages':
         await deleteMessages(runtime, options);
+        return;
+      case 'set-profile':
+        await setProfile(runtime, options);
         return;
       case 'receive':
         await receiveMessages(runtime, options);

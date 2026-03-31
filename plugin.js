@@ -55,6 +55,12 @@ module.exports = {
     return instance.handleMessage(message);
   },
 
+  async updateProfile(channelConfig = {}, profile = {}) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.updateProfile(profile);
+  },
+
   getStatus() {
     if (!runtime) {
       try {

@@ -233,6 +233,42 @@ class DeltaChatRuntime {
     return null;
   }
 
+  async updateProfile(profile = {}) {
+    await this.assertReady();
+
+    const updates = {};
+
+    if (Object.prototype.hasOwnProperty.call(profile, 'displayName')) {
+      updates.displayname = profile.displayName || null;
+    }
+
+    if (profile.clearAvatar) {
+      updates.selfavatar = null;
+    } else if (Object.prototype.hasOwnProperty.call(profile, 'avatarPath')) {
+      const avatarPath = path.resolve(String(profile.avatarPath || ''));
+      if (!fs.existsSync(avatarPath)) {
+        throw new Error(`Avatar file not found: ${avatarPath}`);
+      }
+      updates.selfavatar = avatarPath;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      throw new Error('updateProfile requires displayName, avatarPath, or clearAvatar');
+    }
+
+    await this.client.rpc.batchSetConfig(this.account.accountId, updates);
+
+    return {
+      accountId: this.account.accountId,
+      displayName: Object.prototype.hasOwnProperty.call(updates, 'displayname')
+        ? updates.displayname
+        : await this.client.rpc.getConfig(this.account.accountId, 'displayname'),
+      avatarPath: Object.prototype.hasOwnProperty.call(updates, 'selfavatar')
+        ? updates.selfavatar
+        : await this.client.rpc.getConfig(this.account.accountId, 'selfavatar'),
+    };
+  }
+
   async stop() {
     this.stopRequested = true;
     this.running = false;
