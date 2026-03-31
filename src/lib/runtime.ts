@@ -199,11 +199,20 @@ class DeltaChatRuntime {
   }
 
   async send(message: any = {}): Promise<any> {
-    const text = message.text || message.body;
+    const text = message.text || message.body || null;
     const chatId = Number(message.chatId || message.chat_id || 0);
+    const filePath = message.file || message.filePath || null;
+    const fileName = message.fileName || message.name || null;
 
-    if (!text) {
-      throw new Error('Delta Chat send requires message.text');
+    if (!text && !filePath) {
+      throw new Error('Delta Chat send requires message.text or message.file');
+    }
+
+    if (filePath) {
+      const resolved = path.resolve(filePath);
+      if (!fs.existsSync(resolved)) {
+        throw new Error(`File not found: ${resolved}`);
+      }
     }
 
     await this.assertReady();
@@ -217,12 +226,15 @@ class DeltaChatRuntime {
       throw new Error('Delta Chat send requires message.chatId or message.to');
     }
 
+    const resolvedFile = filePath ? path.resolve(filePath) : null;
+    const resolvedName = resolvedFile ? (fileName || path.basename(resolvedFile)) : null;
+
     const [messageId] = await this.client.rpc.miscSendMsg(
       this.account.accountId,
       targetChatId,
       text,
-      null,
-      null,
+      resolvedFile,
+      resolvedName,
       null,
       null
     );

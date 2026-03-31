@@ -31,7 +31,7 @@ export default {
   },
   capabilities: {
     chatTypes: ['direct', 'group'],
-    media: false,
+    media: true,
     reactions: true,
     threads: false,
     nativeCommands: false,
@@ -106,7 +106,7 @@ export default {
               const message = await instance.client.rpc.getMessage(accountId, messageId);
               const senderAddress = message?.sender?.address ?? null;
 
-              if (!message || !message.text) continue;
+              if (!message || (!message.text && !message.file)) continue;
               if (senderAddress && senderAddress.toLowerCase() === selfEmail) continue;
 
               await instance.client.rpc.markseenMsgs(accountId, [messageId]);
@@ -115,9 +115,10 @@ export default {
               const isGroup = chat?.chatType === 'Group';
               const senderName = message.sender?.displayName || message.sender?.name || senderAddress || 'unknown';
               const peerId = isGroup ? `dc:group:${message.chatId}` : `dc:${senderAddress}`;
-              const rawBody = message.text.trim();
+              const hasFile = Boolean(message.file);
+              const rawBody = (message.text || '').trim();
 
-              if (!rawBody) continue;
+              if (!rawBody && !hasFile) continue;
 
               cr?.activity?.record?.({
                 channel: CHANNEL_ID,
@@ -196,6 +197,15 @@ export default {
                 body: rawBody,
               }) ?? rawBody;
 
+              const attachmentFields: any = {};
+              if (hasFile) {
+                attachmentFields.File = message.file;
+                attachmentFields.FileName = message.fileName || null;
+                attachmentFields.FileMime = message.fileMime || null;
+                attachmentFields.FileBytes = message.fileBytes || 0;
+                attachmentFields.ViewType = message.viewType || null;
+              }
+
               const ctxPayload = cr?.reply?.finalizeInboundContext?.({
                 Body: body,
                 RawBody: rawBody,
@@ -215,7 +225,8 @@ export default {
                 Timestamp: message.timestamp ? message.timestamp * 1000 : Date.now(),
                 OriginatingChannel: CHANNEL_ID,
                 OriginatingTo: peerId,
-              }) ?? { Body: rawBody, RawBody: rawBody, SessionKey: route.sessionKey };
+                ...attachmentFields,
+              }) ?? { Body: rawBody, RawBody: rawBody, SessionKey: route.sessionKey, ...attachmentFields };
 
               // Record session and dispatch AI reply
               if (cr?.session?.recordInboundSession) {
@@ -243,9 +254,11 @@ export default {
                   dispatcherOptions: {
                     ...replyPipeline,
                     deliver: async (payload: any) => {
-                      const text = payload?.text?.trim();
-                      if (text) {
-                        await instance.send({ chatId: message.chatId, text });
+                      const text = payload?.text?.trim() || null;
+                      const file = payload?.file || payload?.filePath || null;
+                      const fileName = payload?.fileName || payload?.name || null;
+                      if (text || file) {
+                        await instance.send({ chatId: message.chatId, text, file, fileName });
                       }
                     },
                     onError: (err: any, info: any) => {
