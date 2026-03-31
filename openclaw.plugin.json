@@ -1,0 +1,76 @@
+{
+  "id": "deltachat",
+  "type": "channel",
+  "name": "Delta Chat",
+  "description": "Delta Chat channel plugin for OpenClaw",
+  "main": "channel.js",
+  "entry": "channel.js",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "configPath": {
+        "type": "string"
+      },
+      "inviteLink": {
+        "type": "string"
+      },
+      "dmPolicy": {
+        "type": "string"
+      },
+      "groupPolicy": {
+        "type": "string"
+      },
+      "rpcServerPath": {
+        "type": "string"
+      },
+      "pythonPath": {
+        "type": "string"
+      }
+    }
+  },
+  "channel": {
+    "id": "deltachat",
+    "name": "Delta Chat",
+    "entry": "channel.js"
+  },
+  "contributes": {
+    "channels": [
+      {
+        "id": "deltachat",
+        "name": "Delta Chat",
+        "entry": "channel.js",
+        "configSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "configPath": {
+              "type": "string"
+            },
+            "inviteLink": {
+              "type": "string"
+            },
+            "dmPolicy": {
+              "type": "string"
+            },
+            "groupPolicy": {
+              "type": "string"
+            },
+            "rpcServerPath": {
+              "type": "string"
+            },
+            "pythonPath": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
