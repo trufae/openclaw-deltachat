@@ -398,6 +398,18 @@ class DeltaChatRuntime {
     return { chatId: resolvedChatId, qr };
   }
 
+  async acceptChat(chatId: any): Promise<any> {
+    await this.assertReady();
+
+    const resolvedChatId = Number(chatId || 0);
+    if (!Number.isInteger(resolvedChatId) || resolvedChatId <= 0) {
+      throw new Error('acceptChat requires a valid chatId');
+    }
+
+    await this.client.rpc.acceptChat(this.account.accountId, resolvedChatId);
+    return { chatId: resolvedChatId, accepted: true };
+  }
+
   async joinQr(qrText: string): Promise<any> {
     await this.assertReady();
 
@@ -667,6 +679,103 @@ class DeltaChatRuntime {
         }
       }
     }
+  }
+
+  async listAccounts(): Promise<any[]> {
+    if (!this.client) {
+      this.runtimeConfig = loadRuntimeConfig(this.channelConfig.configPath);
+      await this.startRpcServer();
+      await this.connectClient();
+    }
+
+    const accounts = await this.client.rpc.getAllAccounts();
+    const result: any[] = [];
+
+    for (const entry of accounts) {
+      const isConfigured = await this.client.rpc.isConfigured(entry.id);
+      let addr = entry.addr || null;
+      if (!addr && isConfigured) {
+        try {
+          addr = await this.client.rpc.getConfig(entry.id, 'addr');
+        } catch (_error) {
+          addr = null;
+        }
+      }
+      result.push({
+        accountId: entry.id,
+        email: addr,
+        configured: isConfigured,
+      });
+    }
+
+    return result;
+  }
+
+  async createAccount(options: any = {}): Promise<any> {
+    if (!options.email) {
+      throw new Error('createAccount requires email');
+    }
+    if (!options.password) {
+      throw new Error('createAccount requires password');
+    }
+
+    if (!this.client) {
+      this.runtimeConfig = loadRuntimeConfig(this.channelConfig.configPath);
+      await this.startRpcServer();
+      await this.connectClient();
+    }
+
+    const accountId = await this.client.rpc.addAccount();
+    await this.client.rpc.addOrUpdateTransport(accountId, {
+      addr: options.email,
+      password: options.password,
+      imapServer: options.imapServer || null,
+      imapPort: options.imapPort || null,
+      imapSecurity: options.imapSecurity || null,
+      imapUser: options.imapUser || null,
+      smtpServer: options.smtpServer || null,
+      smtpPort: options.smtpPort || null,
+      smtpSecurity: options.smtpSecurity || null,
+      smtpUser: options.smtpUser || null,
+      smtpPassword: options.smtpPassword || null,
+      certificateChecks: null,
+      oauth2: null,
+    });
+
+    if (options.displayName) {
+      await this.client.rpc.batchSetConfig(accountId, {
+        displayname: options.displayName,
+      });
+    }
+
+    await this.client.rpc.selectAccount(accountId);
+    await this.client.rpc.startIo(accountId);
+
+    return {
+      accountId,
+      email: options.email,
+      displayName: options.displayName || null,
+    };
+  }
+
+  async deleteAccount(accountId: number): Promise<any> {
+    if (!Number.isInteger(accountId) || accountId <= 0) {
+      throw new Error('deleteAccount requires a valid accountId');
+    }
+
+    if (!this.client) {
+      this.runtimeConfig = loadRuntimeConfig(this.channelConfig.configPath);
+      await this.startRpcServer();
+      await this.connectClient();
+    }
+
+    await this.client.rpc.removeAccount(accountId);
+
+    if (this.account && this.account.accountId === accountId) {
+      this.account = null;
+    }
+
+    return { accountId, deleted: true };
   }
 
   async getOrCreateChatByEmail(email: string): Promise<any> {

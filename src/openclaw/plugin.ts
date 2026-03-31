@@ -137,6 +137,27 @@ export default {
     return instance.joinQr(qrText);
   },
 
+  async acceptChat(channelConfig: any = {}, chatId: any) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.acceptChat(chatId);
+  },
+
+  async listAccounts(channelConfig: any = {}) {
+    const instance = getRuntime(channelConfig);
+    return instance.listAccounts();
+  },
+
+  async createAccount(channelConfig: any = {}, options: any = {}) {
+    const instance = getRuntime(channelConfig);
+    return instance.createAccount(options);
+  },
+
+  async deleteAccount(channelConfig: any = {}, accountId: number) {
+    const instance = getRuntime(channelConfig);
+    return instance.deleteAccount(accountId);
+  },
+
   getStatus() {
     if (!runtime) {
       try {

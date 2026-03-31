@@ -25,6 +25,10 @@ Usage:
   deltachat-cli show-qr [--chat CHAT_ID] [--svg-path PATH] [--json] [--config PATH]
   deltachat-cli receive [--config PATH] [--json] [--timeout SECONDS] [--count N] [--no-mark-seen]
   deltachat-cli create-chat --to EMAIL [--config PATH]
+  deltachat-cli accept-chat --chat CHAT_ID [--config PATH]
+  deltachat-cli list-accounts [--config PATH] [--json]
+  deltachat-cli create-account --email EMAIL --password PASSWORD [--display-name NAME] [--config PATH] [--json]
+  deltachat-cli delete-account --account-id ID [--config PATH]
 
 Examples:
   deltachat-cli list-chats
@@ -43,6 +47,9 @@ Examples:
   deltachat-cli join-qr --qr "OPENPGP4FPR:..."
   deltachat-cli show-qr --chat 42 --svg-path ./group-qr.svg
   deltachat-cli receive --json
+  deltachat-cli list-accounts --json
+  deltachat-cli create-account --email bot@example.org --password secret --display-name "My Bot"
+  deltachat-cli delete-account --account-id 2
 `);
 }
 
@@ -524,6 +531,66 @@ async function createChat(runtime: DeltaChatRuntime, options: any): Promise<void
   console.log(chatId);
 }
 
+async function acceptChatCmd(runtime: DeltaChatRuntime, options: any): Promise<void> {
+  if (!options.chat) {
+    throw new Error('accept-chat requires --chat CHAT_ID');
+  }
+
+  const chatId = requireNumber(options.chat, 'chat');
+  const result = await runtime.acceptChat(chatId);
+  console.log(`accepted chat ${result.chatId}`);
+}
+
+async function listAccountsCmd(runtime: DeltaChatRuntime, options: any): Promise<void> {
+  const accounts = await runtime.listAccounts();
+
+  if (options.json) {
+    console.log(JSON.stringify(accounts, null, 2));
+    return;
+  }
+
+  if (accounts.length === 0) {
+    console.log('no accounts');
+    return;
+  }
+
+  for (const account of accounts) {
+    console.log(`id=${account.accountId} email=${account.email || '-'} configured=${account.configured}`);
+  }
+}
+
+async function createAccountCmd(runtime: DeltaChatRuntime, options: any): Promise<void> {
+  if (!options.email) {
+    throw new Error('create-account requires --email EMAIL');
+  }
+  if (!options.password) {
+    throw new Error('create-account requires --password PASSWORD');
+  }
+
+  const result = await runtime.createAccount({
+    email: options.email,
+    password: options.password,
+    displayName: options['display-name'] || null,
+  });
+
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  console.log(`created account ${result.accountId} email=${result.email}${result.displayName ? ` name=${result.displayName}` : ''}`);
+}
+
+async function deleteAccountCmd(runtime: DeltaChatRuntime, options: any): Promise<void> {
+  if (!options['account-id']) {
+    throw new Error('delete-account requires --account-id ID');
+  }
+
+  const accountId = requireNumber(options['account-id'], 'account-id');
+  const result = await runtime.deleteAccount(accountId);
+  console.log(`deleted account ${result.accountId}`);
+}
+
 async function receiveMessages(runtime: DeltaChatRuntime, options: any): Promise<void> {
   const accountId = runtime.account.accountId;
   const markSeen = !options['no-mark-seen'];
@@ -681,6 +748,18 @@ async function main(): Promise<void> {
         return;
       case 'create-chat':
         await createChat(runtime, options);
+        return;
+      case 'accept-chat':
+        await acceptChatCmd(runtime, options);
+        return;
+      case 'list-accounts':
+        await listAccountsCmd(runtime, options);
+        return;
+      case 'create-account':
+        await createAccountCmd(runtime, options);
+        return;
+      case 'delete-account':
+        await deleteAccountCmd(runtime, options);
         return;
       default:
         throw new Error(`Unknown command: ${command}`);
