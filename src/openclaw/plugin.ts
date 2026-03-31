@@ -1,4 +1,4 @@
-import { DeltaChatRuntime, loadRuntimeConfig } from './runtime.js';
+import { DeltaChatRuntime, loadRuntimeConfig } from '../lib/runtime.js';
 
 let runtime: DeltaChatRuntime | null = null;
 

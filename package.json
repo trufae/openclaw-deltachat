@@ -2,7 +2,12 @@
   "name": "openclaw-deltachat",
   "version": "1.1.0",
   "description": "OpenClaw Delta Chat channel plugin",
-  "main": "./dist/channel.js",
+  "main": "./dist/openclaw/channel.js",
+  "exports": {
+    ".": "./dist/lib/index.js",
+    "./plugin": "./dist/openclaw/plugin.js",
+    "./cli": "./dist/cli/index.js"
+  },
   "files": [
     "dist",
     "openclaw.plugin.json",
@@ -10,7 +15,7 @@
     "deltachat-config.json"
   ],
   "bin": {
-    "deltachat-cli": "./dist/cli.js"
+    "deltachat-cli": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

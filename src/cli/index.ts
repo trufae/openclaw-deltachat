@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { DeltaChatRuntime, loadRuntimeConfig } from './runtime.js';
+import { DeltaChatRuntime, loadRuntimeConfig } from '../lib/runtime.js';
 
 function printHelp(): void {
   console.log(`Delta Chat CLI
