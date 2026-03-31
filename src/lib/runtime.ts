@@ -3,17 +3,156 @@ import os from 'os';
 import path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import { fileURLToPath } from 'url';
-import { StdioDeltaChat } from '@deltachat/jsonrpc-client';
+import { StdioDeltaChat, T } from '@deltachat/jsonrpc-client';
+
+type Socket = T.Socket;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+interface NormalizedAccount {
+  email: string;
+  password: string;
+  dataDir: string;
+  databasePath: string;
+  accountId: number;
+  imapServer: string | null;
+  imapPort: number | null;
+  imapSecurity: Socket | null;
+  imapUser: string | null;
+  smtpServer: string | null;
+  smtpPort: number | null;
+  smtpSecurity: Socket | null;
+  smtpUser: string | null;
+  smtpPassword: string | null;
+  displayName: string | null;
+  index: number;
+}
+
+interface RawAccountConfig {
+  email?: string;
+  addr?: string;
+  mail_pw?: string;
+  password?: string;
+  data_dir?: string;
+  database_path?: string;
+  account_id?: number;
+  imap_server?: string;
+  imap_port?: number;
+  imap_security?: Socket;
+  imap_user?: string;
+  smtp_server?: string;
+  smtp_port?: number;
+  smtp_security?: Socket;
+  smtp_user?: string;
+  smtp_password?: string;
+  display_name?: string;
+}
+
+interface RawConfig {
+  accounts: RawAccountConfig[];
+  rpc?: Record<string, string | number>;
+  runtime?: Record<string, string | string[] | undefined>;
+  inviteLink?: string;
+  invite_link?: string;
+}
+
+interface RuntimeConfig {
+  configPath: string;
+  rpc: Record<string, string | number>;
+  runtime: Record<string, string | string[] | undefined>;
+  inviteLink: string;
+  accounts: NormalizedAccount[];
+}
+
+interface ChannelConfig {
+  enabled: boolean;
+  dmPolicy: string;
+  groupPolicy: string;
+  configPath: string;
+  inviteLink: string;
+  rpcServerPath: string;
+  pythonPath: string;
+}
+
+interface ActiveAccount {
+  accountId: number;
+  email: string;
+}
+
+interface SendMessageParams {
+  text?: string;
+  body?: string;
+  chatId?: number;
+  chat_id?: number;
+  file?: string;
+  filePath?: string;
+  fileName?: string;
+  name?: string;
+  to?: string;
+}
+
+interface InboundMessageParams {
+  chatId?: number;
+  chat_id?: number;
+  text?: string;
+  from?: string;
+  fromName?: string;
+  timestamp?: number;
+  messageId?: number;
+  id?: number;
+}
+
+interface ProfileUpdateParams {
+  displayName?: string;
+  clearAvatar?: boolean;
+  avatarPath?: string | null;
+}
+
+interface CreateGroupParams {
+  name: string;
+  protect?: boolean;
+  members?: string[];
+}
+
+interface CreateAccountParams {
+  email: string;
+  password: string;
+  imapServer?: string | null;
+  imapPort?: number | null;
+  imapSecurity?: Socket | null;
+  imapUser?: string | null;
+  smtpServer?: string | null;
+  smtpPort?: number | null;
+  smtpSecurity?: Socket | null;
+  smtpUser?: string | null;
+  smtpPassword?: string | null;
+  displayName?: string;
+}
+
+interface GatewayNotification {
+  chatId: number;
+  text: string;
+  from: string | null;
+  fromName: string | null;
+  timestamp: number;
+  messageId: number;
+  raw: T.Message | InboundMessageParams;
+}
+
+interface Gateway {
+  handleMessage?: (channel: string, payload: GatewayNotification) => Promise<void>;
+  emit?: (event: string, payload: Record<string, unknown>) => void;
+}
 
 const DEFAULT_CONFIG_FILE = 'deltachat-config.json';
 const DEFAULT_PLUGIN_DIR = path.resolve(__dirname, '..');
 const DEFAULT_RPC_SCRIPT = path.join(os.homedir(), '.venv', 'deltachat', 'bin', 'deltachat-rpc-server');
 const DEFAULT_PYTHON = path.join(os.homedir(), '.venv', 'deltachat', 'bin', 'python');
 
-function expandHome(value: any): any {
+function expandHome(value: string): string;
+function expandHome(value: unknown): unknown;
+function expandHome(value: unknown): unknown {
   if (typeof value !== 'string' || value.length === 0) {
     return value;
   }
@@ -44,8 +183,8 @@ function resolveConfigPath(customPath?: string): string {
     : path.resolve(DEFAULT_PLUGIN_DIR, expanded);
 }
 
-function readJsonFile(filePath: string): any {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+function readJsonFile(filePath: string): RawConfig {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8')) as RawConfig;
 }
 
 function isSqliteDatabase(filePath: string): boolean {
@@ -72,7 +211,7 @@ function isSqliteDatabase(filePath: string): boolean {
   }
 }
 
-function normalizeAccount(account: any, index: number): any {
+function normalizeAccount(account: RawAccountConfig, index: number): NormalizedAccount {
   const dataDir = expandHome(account.data_dir || '');
   const databasePath = expandHome(
     account.database_path
@@ -99,7 +238,7 @@ function normalizeAccount(account: any, index: number): any {
   };
 }
 
-function validateConfig(config: any, configPath: string): void {
+function validateConfig(config: RawConfig, configPath: string): void {
   if (!config || typeof config !== 'object') {
     throw new Error(`Invalid Delta Chat config in ${configPath}`);
   }
@@ -115,7 +254,7 @@ function validateConfig(config: any, configPath: string): void {
   }
 }
 
-function loadRuntimeConfig(customPath?: string): any {
+function loadRuntimeConfig(customPath?: string): RuntimeConfig {
   const configPath = resolveConfigPath(customPath);
   const loaded = readJsonFile(configPath);
   validateConfig(loaded, configPath);
@@ -130,17 +269,17 @@ function loadRuntimeConfig(customPath?: string): any {
 }
 
 class DeltaChatRuntime {
-  gateway: any;
-  channelConfig: any;
-  runtimeConfig: any;
+  gateway: Gateway | null;
+  channelConfig: ChannelConfig;
+  runtimeConfig: RuntimeConfig | null;
   rpcProcess: ChildProcess | null;
-  client: any;
-  account: any;
+  client: StdioDeltaChat | null;
+  account: ActiveAccount | null;
   running: boolean;
   listenLoop: Promise<void> | null;
   stopRequested: boolean;
 
-  constructor(channelConfig: any = {}) {
+  constructor(channelConfig: Partial<ChannelConfig> = {}) {
     this.gateway = null;
     this.channelConfig = {
       enabled: channelConfig.enabled !== false,
@@ -160,11 +299,11 @@ class DeltaChatRuntime {
     this.stopRequested = false;
   }
 
-  updateChannelConfig(channelConfig: any = {}): void {
+  updateChannelConfig(channelConfig: Partial<ChannelConfig> = {}): void {
     this.channelConfig = { ...this.channelConfig, ...channelConfig };
   }
 
-  async init(gateway?: any, options?: { skipListener?: boolean }): Promise<void> {
+  async init(gateway?: Gateway, options?: { skipListener?: boolean }): Promise<void> {
     if (gateway) {
       this.gateway = gateway;
     }
@@ -183,13 +322,13 @@ class DeltaChatRuntime {
     this.stopRequested = false;
 
     if (!options?.skipListener) {
-      this.listenLoop = this.listenForMessages().catch((error: any) => {
+      this.listenLoop = this.listenForMessages().catch((error: Error) => {
         console.error('[Delta Chat] listener stopped:', error.message);
       });
     }
   }
 
-  getStatus(): any {
+  getStatus(): { running: boolean; configured: boolean; account: string | null; configPath: string } {
     return {
       running: this.running,
       configured: Boolean(this.account),
@@ -198,7 +337,7 @@ class DeltaChatRuntime {
     };
   }
 
-  async send(message: any = {}): Promise<any> {
+  async send(message: SendMessageParams = {}): Promise<number> {
     const text = message.text || message.body || null;
     const chatId = Number(message.chatId || message.chat_id || 0);
     const filePath = message.file || message.filePath || null;
@@ -229,8 +368,8 @@ class DeltaChatRuntime {
     const resolvedFile = filePath ? path.resolve(filePath) : null;
     const resolvedName = resolvedFile ? (fileName || path.basename(resolvedFile)) : null;
 
-    const [messageId] = await this.client.rpc.miscSendMsg(
-      this.account.accountId,
+    const [messageId] = await this.client!.rpc.miscSendMsg(
+      this.account!.accountId,
       targetChatId,
       text,
       resolvedFile,
@@ -242,7 +381,7 @@ class DeltaChatRuntime {
     return messageId;
   }
 
-  async handleMessage(message: any = {}): Promise<null> {
+  async handleMessage(message: InboundMessageParams = {}): Promise<null> {
     if (!message || !message.text) {
       return null;
     }
@@ -260,19 +399,19 @@ class DeltaChatRuntime {
     return null;
   }
 
-  async updateProfile(profile: any = {}): Promise<any> {
+  async updateProfile(profile: ProfileUpdateParams = {}): Promise<{ accountId: number; displayName: string | null; avatarPath: string | null }> {
     await this.assertReady();
 
-    const updates: any = {};
+    const updates: Record<string, string | null> = {};
 
-    if (Object.prototype.hasOwnProperty.call(profile, 'displayName')) {
+    if (profile.displayName !== undefined) {
       updates.displayname = profile.displayName || null;
     }
 
     if (profile.clearAvatar) {
       updates.selfavatar = null;
-    } else if (Object.prototype.hasOwnProperty.call(profile, 'avatarPath')) {
-      const avatarPath = path.resolve(String(profile.avatarPath || ''));
+    } else if (profile.avatarPath !== undefined && profile.avatarPath !== null) {
+      const avatarPath = path.resolve(String(profile.avatarPath));
       if (!fs.existsSync(avatarPath)) {
         throw new Error(`Avatar file not found: ${avatarPath}`);
       }
@@ -283,20 +422,20 @@ class DeltaChatRuntime {
       throw new Error('updateProfile requires displayName, avatarPath, or clearAvatar');
     }
 
-    await this.client.rpc.batchSetConfig(this.account.accountId, updates);
+    await this.client!.rpc.batchSetConfig(this.account!.accountId, updates);
 
     return {
-      accountId: this.account.accountId,
+      accountId: this.account!.accountId,
       displayName: Object.prototype.hasOwnProperty.call(updates, 'displayname')
         ? updates.displayname
-        : await this.client.rpc.getConfig(this.account.accountId, 'displayname'),
+        : await this.client!.rpc.getConfig(this.account!.accountId, 'displayname'),
       avatarPath: Object.prototype.hasOwnProperty.call(updates, 'selfavatar')
         ? updates.selfavatar
-        : await this.client.rpc.getConfig(this.account.accountId, 'selfavatar'),
+        : await this.client!.rpc.getConfig(this.account!.accountId, 'selfavatar'),
     };
   }
 
-  async getChatInfo(chatId: any): Promise<any> {
+  async getChatInfo(chatId: number): Promise<T.FullChat & { encryptionInfo: string | null }> {
     await this.assertReady();
 
     const resolvedChatId = Number(chatId || 0);
@@ -304,10 +443,10 @@ class DeltaChatRuntime {
       throw new Error('getChatInfo requires a valid chatId');
     }
 
-    const fullChat = await this.client.rpc.getFullChatById(this.account.accountId, resolvedChatId);
-    let encryptionInfo = null;
+    const fullChat = await this.client!.rpc.getFullChatById(this.account!.accountId, resolvedChatId);
+    let encryptionInfo: string | null = null;
     try {
-      encryptionInfo = await this.client.rpc.getChatEncryptionInfo(this.account.accountId, resolvedChatId);
+      encryptionInfo = await this.client!.rpc.getChatEncryptionInfo(this.account!.accountId, resolvedChatId);
     } catch (_error) {
       encryptionInfo = null;
     }
@@ -318,15 +457,15 @@ class DeltaChatRuntime {
     };
   }
 
-  async createGroup(options: any = {}): Promise<any> {
+  async createGroup(options: CreateGroupParams): Promise<T.FullChat & { encryptionInfo: string | null }> {
     await this.assertReady();
 
     if (!options.name) {
       throw new Error('createGroup requires name');
     }
 
-    const chatId = await this.client.rpc.createGroupChat(
-      this.account.accountId,
+    const chatId = await this.client!.rpc.createGroupChat(
+      this.account!.accountId,
       options.name,
       Boolean(options.protect)
     );
@@ -337,31 +476,31 @@ class DeltaChatRuntime {
       if (!email) {
         continue;
       }
-      const contactId = await this.client.rpc.createContact(this.account.accountId, email, null);
-      await this.client.rpc.addContactToChat(this.account.accountId, chatId, contactId);
+      const contactId = await this.client!.rpc.createContact(this.account!.accountId, email, null);
+      await this.client!.rpc.addContactToChat(this.account!.accountId, chatId, contactId);
     }
 
     return this.getChatInfo(chatId);
   }
 
-  async renameChat(chatId: any, newName: string): Promise<any> {
+  async renameChat(chatId: number, newName: string): Promise<T.FullChat & { encryptionInfo: string | null }> {
     await this.assertReady();
 
     if (!newName) {
       throw new Error('renameChat requires newName');
     }
 
-    await this.client.rpc.setChatName(this.account.accountId, Number(chatId), newName);
+    await this.client!.rpc.setChatName(this.account!.accountId, Number(chatId), newName);
     return this.getChatInfo(chatId);
   }
 
-  async leaveGroup(chatId: any): Promise<any> {
+  async leaveGroup(chatId: number): Promise<{ chatId: number; left: boolean }> {
     await this.assertReady();
-    await this.client.rpc.leaveGroup(this.account.accountId, Number(chatId));
+    await this.client!.rpc.leaveGroup(this.account!.accountId, Number(chatId));
     return { chatId: Number(chatId), left: true };
   }
 
-  async saveAttachment(messageId: any, destinationPath: string): Promise<any> {
+  async saveAttachment(messageId: number, destinationPath: string): Promise<{ messageId: number; path: string }> {
     await this.assertReady();
 
     if (!destinationPath) {
@@ -369,30 +508,30 @@ class DeltaChatRuntime {
     }
 
     const resolvedPath = path.resolve(destinationPath);
-    await this.client.rpc.saveMsgFile(this.account.accountId, Number(messageId), resolvedPath);
+    await this.client!.rpc.saveMsgFile(this.account!.accountId, Number(messageId), resolvedPath);
     return { messageId: Number(messageId), path: resolvedPath };
   }
 
-  async editMessage(messageId: any, newText: string): Promise<any> {
+  async editMessage(messageId: number, newText: string): Promise<T.Message> {
     await this.assertReady();
 
     if (!newText) {
       throw new Error('editMessage requires newText');
     }
 
-    await this.client.rpc.sendEditRequest(this.account.accountId, Number(messageId), newText);
-    return this.client.rpc.getMessage(this.account.accountId, Number(messageId));
+    await this.client!.rpc.sendEditRequest(this.account!.accountId, Number(messageId), newText);
+    return this.client!.rpc.getMessage(this.account!.accountId, Number(messageId));
   }
 
-  async reactToMessage(messageId: any, reaction: any): Promise<any> {
+  async reactToMessage(messageId: number, reaction: string | string[]): Promise<{ messageId: number; reaction: string[]; reactions: T.Reactions }> {
     await this.assertReady();
 
     const parts = Array.isArray(reaction)
       ? reaction
       : String(reaction || '').split(/\s+/).filter(Boolean);
 
-    await this.client.rpc.sendReaction(this.account.accountId, Number(messageId), parts);
-    const reactions = await this.client.rpc.getMessageReactions(this.account.accountId, Number(messageId));
+    await this.client!.rpc.sendReaction(this.account!.accountId, Number(messageId), parts);
+    const reactions = await this.client!.rpc.getMessageReactions(this.account!.accountId, Number(messageId));
     return {
       messageId: Number(messageId),
       reaction: parts,
@@ -400,20 +539,20 @@ class DeltaChatRuntime {
     };
   }
 
-  async getSecureJoinQr(chatId: any, withSvg = false): Promise<any> {
+  async getSecureJoinQr(chatId: number | null, withSvg = false): Promise<{ chatId: number | null; qr: string; svg?: string }> {
     await this.assertReady();
 
     const resolvedChatId = chatId ? Number(chatId) : null;
     if (withSvg) {
-      const [qr, svg] = await this.client.rpc.getChatSecurejoinQrCodeSvg(this.account.accountId, resolvedChatId);
+      const [qr, svg] = await this.client!.rpc.getChatSecurejoinQrCodeSvg(this.account!.accountId, resolvedChatId);
       return { chatId: resolvedChatId, qr, svg };
     }
 
-    const qr = await this.client.rpc.getChatSecurejoinQrCode(this.account.accountId, resolvedChatId);
+    const qr = await this.client!.rpc.getChatSecurejoinQrCode(this.account!.accountId, resolvedChatId);
     return { chatId: resolvedChatId, qr };
   }
 
-  async acceptChat(chatId: any): Promise<any> {
+  async acceptChat(chatId: number): Promise<{ chatId: number; accepted: boolean }> {
     await this.assertReady();
 
     const resolvedChatId = Number(chatId || 0);
@@ -421,28 +560,28 @@ class DeltaChatRuntime {
       throw new Error('acceptChat requires a valid chatId');
     }
 
-    await this.client.rpc.acceptChat(this.account.accountId, resolvedChatId);
+    await this.client!.rpc.acceptChat(this.account!.accountId, resolvedChatId);
     return { chatId: resolvedChatId, accepted: true };
   }
 
-  async joinQr(qrText: string): Promise<any> {
+  async joinQr(qrText: string): Promise<{ kind: string; chatId: number }> {
     await this.assertReady();
 
     if (!qrText) {
       throw new Error('joinQr requires qrText');
     }
 
-    const qr = await this.client.rpc.checkQr(this.account.accountId, qrText);
+    const qr = await this.client!.rpc.checkQr(this.account!.accountId, qrText);
 
     if (qr.kind === 'askVerifyGroup' || qr.kind === 'askVerifyContact') {
-      const chatId = await this.client.rpc.secureJoin(this.account.accountId, qrText);
-      await this.client.rpc.acceptChat(this.account.accountId, chatId);
+      const chatId = await this.client!.rpc.secureJoin(this.account!.accountId, qrText);
+      await this.client!.rpc.acceptChat(this.account!.accountId, chatId);
       return { kind: qr.kind, chatId };
     }
 
-    if (qr.kind === 'fprOk' && qr.contact_id) {
-      const chatId = await this.client.rpc.createChatByContactId(this.account.accountId, qr.contact_id);
-      await this.client.rpc.acceptChat(this.account.accountId, chatId);
+    if (qr.kind === 'fprOk') {
+      const chatId = await this.client!.rpc.createChatByContactId(this.account!.accountId, qr.contact_id);
+      await this.client!.rpc.acceptChat(this.account!.accountId, chatId);
       return { kind: qr.kind, chatId };
     }
 
@@ -455,9 +594,9 @@ class DeltaChatRuntime {
 
     if (this.account && this.client) {
       try {
-        await withTimeout(this.client.rpc.stopIo(this.account.accountId), 2000, 'stopIo');
-      } catch (error: any) {
-        console.error('[Delta Chat] stopIo failed:', error.message);
+        await withTimeout(this.client!.rpc.stopIo(this.account!.accountId), 2000, 'stopIo');
+      } catch (error: unknown) {
+        console.error('[Delta Chat] stopIo failed:', error instanceof Error ? error.message : error);
       }
     }
 
@@ -499,13 +638,13 @@ class DeltaChatRuntime {
   }
 
   getRpcCommand(): string[] {
-    const configured = this.runtimeConfig.runtime.rpc_command;
+    const configured = this.runtimeConfig!.runtime.rpc_command;
     if (Array.isArray(configured) && configured.length > 0) {
-      return configured;
+      return configured as string[];
     }
 
-    const scriptPath = expandHome(this.channelConfig.rpcServerPath || this.runtimeConfig.runtime.rpc_server_path || DEFAULT_RPC_SCRIPT);
-    const pythonPath = expandHome(this.channelConfig.pythonPath || this.runtimeConfig.runtime.python_path || DEFAULT_PYTHON);
+    const scriptPath = expandHome(String(this.channelConfig.rpcServerPath || this.runtimeConfig!.runtime.rpc_server_path || DEFAULT_RPC_SCRIPT));
+    const pythonPath = expandHome(String(this.channelConfig.pythonPath || this.runtimeConfig!.runtime.python_path || DEFAULT_PYTHON));
 
     if (fs.existsSync(scriptPath)) {
       try {
@@ -548,7 +687,7 @@ class DeltaChatRuntime {
       stdio: ['pipe', 'pipe', 'inherit'],
     });
 
-    this.rpcProcess.once('error', (error: any) => {
+    this.rpcProcess.once('error', (error: Error) => {
       console.error('[Delta Chat] RPC process error:', error.message);
     });
   }
@@ -573,29 +712,30 @@ class DeltaChatRuntime {
   }
 
   async ensureAccount(): Promise<void> {
-    const configuredAccount = this.runtimeConfig.accounts[0];
-    const accounts = await this.client.rpc.getAllAccounts();
+    const configuredAccount = this.runtimeConfig!.accounts[0];
+    const accounts = await this.client!.rpc.getAllAccounts();
 
-    let account = accounts.find((entry: any) => (
+    let account: T.Account | undefined = accounts.find((entry) => (
       configuredAccount.accountId > 0
       && entry.id === configuredAccount.accountId
-    )) || accounts.find((entry: any) => (
-      entry.addr
+    )) || accounts.find((entry) => (
+      entry.kind === 'Configured'
+      && entry.addr
       && entry.addr.toLowerCase() === configuredAccount.email.toLowerCase()
     ));
 
     if (!account && isSqliteDatabase(configuredAccount.databasePath)) {
       try {
-        const migratedId = await this.client.rpc.migrateAccount(configuredAccount.databasePath);
-        account = await this.client.rpc.getAccountInfo(migratedId);
-      } catch (error: any) {
-        console.error('[Delta Chat] migrateAccount failed:', error.message);
+        const migratedId = await this.client!.rpc.migrateAccount(configuredAccount.databasePath);
+        account = await this.client!.rpc.getAccountInfo(migratedId);
+      } catch (error: unknown) {
+        console.error('[Delta Chat] migrateAccount failed:', error instanceof Error ? error.message : error);
       }
     }
 
     if (!account) {
-      const accountId = await this.client.rpc.addAccount();
-      await this.client.rpc.addOrUpdateTransport(accountId, {
+      const accountId = await this.client!.rpc.addAccount();
+      await this.client!.rpc.addOrUpdateTransport(accountId, {
         addr: configuredAccount.email,
         password: configuredAccount.password,
         imapServer: configuredAccount.imapServer,
@@ -610,13 +750,13 @@ class DeltaChatRuntime {
         certificateChecks: null,
         oauth2: null,
       });
-      account = await this.client.rpc.getAccountInfo(accountId);
+      account = await this.client!.rpc.getAccountInfo(accountId);
     }
 
     const accountId = account.id;
-    const isConfigured = await this.client.rpc.isConfigured(accountId);
+    const isConfigured = await this.client!.rpc.isConfigured(accountId);
     if (!isConfigured && configuredAccount.password) {
-      await this.client.rpc.addOrUpdateTransport(accountId, {
+      await this.client!.rpc.addOrUpdateTransport(accountId, {
         addr: configuredAccount.email,
         password: configuredAccount.password,
         imapServer: configuredAccount.imapServer,
@@ -633,9 +773,9 @@ class DeltaChatRuntime {
       });
     }
 
-    await this.client.rpc.selectAccount(accountId);
-    await this.client.rpc.batchSetConfig(accountId, { bot: '1' });
-    await this.client.rpc.startIo(accountId);
+    await this.client!.rpc.selectAccount(accountId);
+    await this.client!.rpc.batchSetConfig(accountId, { bot: '1' });
+    await this.client!.rpc.startIo(accountId);
 
     this.account = {
       accountId,
@@ -644,40 +784,40 @@ class DeltaChatRuntime {
   }
 
   async joinInviteLink(): Promise<void> {
-    const inviteLink = this.channelConfig.inviteLink || this.runtimeConfig.inviteLink;
+    const inviteLink = this.channelConfig.inviteLink || this.runtimeConfig?.inviteLink;
     if (!inviteLink || !this.client || !this.account) {
       return;
     }
 
     try {
-      const qr = await this.client.rpc.checkQr(this.account.accountId, inviteLink);
+      const qr = await this.client!.rpc.checkQr(this.account!.accountId, inviteLink);
       if (qr.kind === 'askVerifyGroup' || qr.kind === 'askVerifyContact') {
-        const chatId = await this.client.rpc.secureJoin(this.account.accountId, inviteLink);
-        await this.client.rpc.acceptChat(this.account.accountId, chatId);
+        const chatId = await this.client!.rpc.secureJoin(this.account!.accountId, inviteLink);
+        await this.client!.rpc.acceptChat(this.account!.accountId, chatId);
         console.log(`[Delta Chat] Joined invite chat ${chatId}`);
         return;
       }
 
-      if (qr.kind === 'fprOk' && qr.contact_id) {
-        const chatId = await this.client.rpc.createChatByContactId(this.account.accountId, qr.contact_id);
-        await this.client.rpc.acceptChat(this.account.accountId, chatId);
+      if (qr.kind === 'fprOk') {
+        const chatId = await this.client!.rpc.createChatByContactId(this.account!.accountId, qr.contact_id);
+        await this.client!.rpc.acceptChat(this.account!.accountId, chatId);
         console.log(`[Delta Chat] Joined verified contact chat ${chatId}`);
         return;
       }
 
       console.log(`[Delta Chat] Invite link check result: ${qr.kind}`);
-    } catch (error: any) {
-      console.error('[Delta Chat] Failed to process invite link:', error.message);
+    } catch (error: unknown) {
+      console.error('[Delta Chat] Failed to process invite link:', error instanceof Error ? error.message : error);
     }
   }
 
   async listenForMessages(): Promise<void> {
     while (!this.stopRequested && this.client && this.account) {
       try {
-        const messageIds = await this.client.rpc.waitNextMsgs(this.account.accountId);
+        const messageIds = await this.client!.rpc.waitNextMsgs(this.account!.accountId);
 
         for (const messageId of messageIds) {
-          const message = await this.client.rpc.getMessage(this.account.accountId, messageId);
+          const message = await this.client!.rpc.getMessage(this.account!.accountId, messageId);
           const senderAddress = message && message.sender ? message.sender.address : null;
           if (!message || !message.text || (
             senderAddress
@@ -686,7 +826,7 @@ class DeltaChatRuntime {
             continue;
           }
 
-          await this.client.rpc.markseenMsgs(this.account.accountId, [messageId]);
+          await this.client!.rpc.markseenMsgs(this.account!.accountId, [messageId]);
 
           await this.notifyGateway({
             chatId: message.chatId,
@@ -698,31 +838,31 @@ class DeltaChatRuntime {
             raw: message,
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!this.stopRequested) {
-          console.error('[Delta Chat] waitNextMsgs failed:', error.message);
+          console.error('[Delta Chat] waitNextMsgs failed:', error instanceof Error ? error.message : error);
           await sleep(1000);
         }
       }
     }
   }
 
-  async listAccounts(): Promise<any[]> {
+  async listAccounts(): Promise<{ accountId: number; email: string | null; configured: boolean }[]> {
     if (!this.client) {
       this.runtimeConfig = loadRuntimeConfig(this.channelConfig.configPath);
       await this.startRpcServer();
       await this.connectClient();
     }
 
-    const accounts = await this.client.rpc.getAllAccounts();
-    const result: any[] = [];
+    const accounts = await this.client!.rpc.getAllAccounts();
+    const result: { accountId: number; email: string | null; configured: boolean }[] = [];
 
     for (const entry of accounts) {
-      const isConfigured = await this.client.rpc.isConfigured(entry.id);
-      let addr = entry.addr || null;
+      const isConfigured = await this.client!.rpc.isConfigured(entry.id);
+      let addr: string | null = (entry.kind === 'Configured' ? entry.addr : null) || null;
       if (!addr && isConfigured) {
         try {
-          addr = await this.client.rpc.getConfig(entry.id, 'addr');
+          addr = await this.client!.rpc.getConfig(entry.id, 'addr');
         } catch (_error) {
           addr = null;
         }
@@ -737,7 +877,7 @@ class DeltaChatRuntime {
     return result;
   }
 
-  async createAccount(options: any = {}): Promise<any> {
+  async createAccount(options: CreateAccountParams): Promise<{ accountId: number; email: string; displayName: string | null }> {
     if (!options.email) {
       throw new Error('createAccount requires email');
     }
@@ -751,8 +891,8 @@ class DeltaChatRuntime {
       await this.connectClient();
     }
 
-    const accountId = await this.client.rpc.addAccount();
-    await this.client.rpc.addOrUpdateTransport(accountId, {
+    const accountId = await this.client!.rpc.addAccount();
+    await this.client!.rpc.addOrUpdateTransport(accountId, {
       addr: options.email,
       password: options.password,
       imapServer: options.imapServer || null,
@@ -769,13 +909,13 @@ class DeltaChatRuntime {
     });
 
     if (options.displayName) {
-      await this.client.rpc.batchSetConfig(accountId, {
+      await this.client!.rpc.batchSetConfig(accountId, {
         displayname: options.displayName,
       });
     }
 
-    await this.client.rpc.selectAccount(accountId);
-    await this.client.rpc.startIo(accountId);
+    await this.client!.rpc.selectAccount(accountId);
+    await this.client!.rpc.startIo(accountId);
 
     return {
       accountId,
@@ -784,7 +924,7 @@ class DeltaChatRuntime {
     };
   }
 
-  async deleteAccount(accountId: number): Promise<any> {
+  async deleteAccount(accountId: number): Promise<{ accountId: number; deleted: boolean }> {
     if (!Number.isInteger(accountId) || accountId <= 0) {
       throw new Error('deleteAccount requires a valid accountId');
     }
@@ -795,7 +935,7 @@ class DeltaChatRuntime {
       await this.connectClient();
     }
 
-    await this.client.rpc.removeAccount(accountId);
+    await this.client!.rpc.removeAccount(accountId);
 
     if (this.account && this.account.accountId === accountId) {
       this.account = null;
@@ -804,21 +944,21 @@ class DeltaChatRuntime {
     return { accountId, deleted: true };
   }
 
-  async getOrCreateChatByEmail(email: string): Promise<any> {
-    let contactId = await this.client.rpc.lookupContactIdByAddr(this.account.accountId, email);
+  async getOrCreateChatByEmail(email: string): Promise<number> {
+    let contactId = await this.client!.rpc.lookupContactIdByAddr(this.account!.accountId, email);
     if (!contactId) {
-      contactId = await this.client.rpc.createContact(this.account.accountId, email, null);
+      contactId = await this.client!.rpc.createContact(this.account!.accountId, email, null);
     }
 
-    const existingChatId = await this.client.rpc.getChatIdByContactId(this.account.accountId, contactId);
+    const existingChatId = await this.client!.rpc.getChatIdByContactId(this.account!.accountId, contactId);
     if (existingChatId) {
       return existingChatId;
     }
 
-    return this.client.rpc.createChatByContactId(this.account.accountId, contactId);
+    return this.client!.rpc.createChatByContactId(this.account!.accountId, contactId);
   }
 
-  async notifyGateway(payload: any): Promise<void> {
+  async notifyGateway(payload: GatewayNotification): Promise<void> {
     if (!this.gateway) {
       console.log('[Delta Chat] message:', payload.text);
       return;
@@ -845,10 +985,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function withTimeout(promise: Promise<any>, timeoutMs: number, label: string): Promise<any> {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return Promise.race([
     promise,
-    new Promise((_, reject) => {
+    new Promise<T>((_, reject) => {
       setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
     }),
   ]);
@@ -857,4 +997,17 @@ function withTimeout(promise: Promise<any>, timeoutMs: number, label: string): P
 export {
   DeltaChatRuntime,
   loadRuntimeConfig,
+};
+
+export type {
+  ChannelConfig,
+  SendMessageParams,
+  InboundMessageParams,
+  ProfileUpdateParams,
+  CreateGroupParams,
+  CreateAccountParams,
+  ActiveAccount,
+  RuntimeConfig,
+  Gateway,
+  GatewayNotification,
 };
