@@ -164,7 +164,7 @@ class DeltaChatRuntime {
     this.channelConfig = { ...this.channelConfig, ...channelConfig };
   }
 
-  async init(gateway?: any): Promise<void> {
+  async init(gateway?: any, options?: { skipListener?: boolean }): Promise<void> {
     if (gateway) {
       this.gateway = gateway;
     }
@@ -181,9 +181,12 @@ class DeltaChatRuntime {
 
     this.running = true;
     this.stopRequested = false;
-    this.listenLoop = this.listenForMessages().catch((error: any) => {
-      console.error('[Delta Chat] listener stopped:', error.message);
-    });
+
+    if (!options?.skipListener) {
+      this.listenLoop = this.listenForMessages().catch((error: any) => {
+        console.error('[Delta Chat] listener stopped:', error.message);
+      });
+    }
   }
 
   getStatus(): any {
@@ -510,6 +513,15 @@ class DeltaChatRuntime {
     throw new Error(`Delta Chat RPC server not found. Checked ${scriptPath} and ${pythonPath}`);
   }
 
+  resolveRpcCwd(): string {
+    // Use the directory containing the config file so the accounts/
+    // database lives next to the config, not next to the code.
+    if (this.runtimeConfig?.configPath) {
+      return path.dirname(this.runtimeConfig.configPath);
+    }
+    return DEFAULT_PLUGIN_DIR;
+  }
+
   async startRpcServer(): Promise<void> {
     if (this.rpcProcess) {
       return;
@@ -517,9 +529,10 @@ class DeltaChatRuntime {
 
     const command = this.getRpcCommand();
     const [bin, ...args] = command;
+    const cwd = this.resolveRpcCwd();
 
     this.rpcProcess = spawn(bin, args, {
-      cwd: DEFAULT_PLUGIN_DIR,
+      cwd,
       stdio: ['pipe', 'pipe', 'inherit'],
     });
 
@@ -609,6 +622,7 @@ class DeltaChatRuntime {
     }
 
     await this.client.rpc.selectAccount(accountId);
+    await this.client.rpc.batchSetConfig(accountId, { bot: '1' });
     await this.client.rpc.startIo(accountId);
 
     this.account = {

@@ -12,7 +12,7 @@ INSTALL_FILES = \
 	deltachat-config.json \
 	README.md
 
-.PHONY: build clean install uninstall
+.PHONY: build clean install uninstall invite-link
 
 build:
 	./node_modules/.bin/tsc -p tsconfig.json
@@ -24,7 +24,7 @@ install: build
 	install -d "$(TARGET_DIR)"
 	cp $(INSTALL_FILES) "$(TARGET_DIR)/"
 	rm -rf "$(TARGET_DIR)/dist"
-	cp -R dist "$(TARGET_DIR)/dist"
+	rsync -a --exclude=accounts dist/ "$(TARGET_DIR)/dist/"
 	rm -rf "$(TARGET_DIR)/node_modules"
 	cp -R node_modules "$(TARGET_DIR)/node_modules"
 	rm -rf "$(OPENCLAW_CHANNELS_DIR)/delta-chat" "$(OPENCLAW_CHANNELS_DIR)/deltachat"
@@ -65,6 +65,13 @@ print("Updated", cat)' \
 		"$(OPENCLAW_DIR)/openclaw.json" \
 		"$(TARGET_DIR)/deltachat-config.json" \
 		"$(OPENCLAW_DIR)/workspace/channel-catalog.json"
+
+invite-link: build
+	@node --input-type=commonjs -e 'const{DeltaChatRuntime}=require("./dist/lib/runtime");(async()=>{const rt=new DeltaChatRuntime({configPath:process.argv[1]});await rt.init();const aid=rt.account.accountId;for(let i=0;i<10;i++){if(await rt.client.rpc.getConnectivity(aid)>=3000)break;await new Promise(r=>setTimeout(r,1000))}const entries=await rt.client.rpc.getChatlistEntries(aid,null,null,null);let gid=null;for(const c of entries){const ch=await rt.client.rpc.getFullChatById(aid,c);if(ch.chatType==="Group"){gid=c;break}}if(!gid){gid=await rt.client.rpc.createGroupChat(aid,"r2claw",true);console.error("Created group "+gid)}const[qr]=await rt.client.rpc.getChatSecurejoinQrCodeSvg(aid,gid);console.log(qr);process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)})' \
+		"$(TARGET_DIR)/deltachat-config.json" > /tmp/.deltachat-invite-link
+	@python3 -c 'import json,sys;from pathlib import Path;link=Path("/tmp/.deltachat-invite-link").read_text().strip();[(lambda p:(p.write_text(json.dumps((lambda c:(c.setdefault("channels",{}).setdefault("deltachat",{}).__setitem__("inviteLink",link),c)[-1])(json.loads(p.read_text()))if p.name=="openclaw.json"else(lambda c:(c.__setitem__("inviteLink",link),c)[-1])(json.loads(p.read_text())),indent=2)+"\n"),print("Updated",p)))(p)for p in[Path(sys.argv[1])/"deltachat.json",Path(sys.argv[1])/"openclaw.json"]if p.exists()];print("Invite link:",link)' \
+		"$(OPENCLAW_DIR)"
+	@rm -f /tmp/.deltachat-invite-link
 
 uninstall:
 	rm -rf "$(TARGET_DIR)" "$(OPENCLAW_CHANNELS_DIR)/delta-chat" "$(OPENCLAW_CHANNELS_DIR)/deltachat"
