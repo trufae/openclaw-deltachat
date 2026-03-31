@@ -61,6 +61,60 @@ module.exports = {
     return instance.updateProfile(profile);
   },
 
+  async getChatInfo(channelConfig = {}, chatId) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.getChatInfo(chatId);
+  },
+
+  async createGroup(channelConfig = {}, options = {}) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.createGroup(options);
+  },
+
+  async renameChat(channelConfig = {}, chatId, newName) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.renameChat(chatId, newName);
+  },
+
+  async leaveGroup(channelConfig = {}, chatId) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.leaveGroup(chatId);
+  },
+
+  async saveAttachment(channelConfig = {}, messageId, destinationPath) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.saveAttachment(messageId, destinationPath);
+  },
+
+  async editMessage(channelConfig = {}, messageId, newText) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.editMessage(messageId, newText);
+  },
+
+  async reactToMessage(channelConfig = {}, messageId, reaction) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.reactToMessage(messageId, reaction);
+  },
+
+  async getSecureJoinQr(channelConfig = {}, chatId, withSvg = false) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.getSecureJoinQr(chatId, withSvg);
+  },
+
+  async joinQr(channelConfig = {}, qrText) {
+    const instance = getRuntime(channelConfig);
+    await instance.init();
+    return instance.joinQr(qrText);
+  },
+
   getStatus() {
     if (!runtime) {
       try {

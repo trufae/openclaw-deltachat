@@ -9,23 +9,41 @@ function printHelp() {
   console.log(`Delta Chat CLI
 
 Usage:
-  node cli.js status [--config PATH]
-  node cli.js list-chats [--config PATH] [--json] [--limit N] [--query TEXT]
-  node cli.js list-messages --chat CHAT_ID [--config PATH] [--json] [--limit N]
-  node cli.js send (--chat CHAT_ID | --to EMAIL) [--text TEXT] [--file PATH] [--name NAME] [--config PATH]
-  node cli.js delete-messages --chat CHAT_ID --ids ID[,ID...] [--for-all] [--config PATH]
-  node cli.js set-profile [--name NAME] [--avatar PATH] [--clear-avatar] [--config PATH]
-  node cli.js receive [--config PATH] [--json] [--timeout SECONDS] [--count N] [--no-mark-seen]
-  node cli.js create-chat --to EMAIL [--config PATH]
+  deltachat-cli status [--config PATH]
+  deltachat-cli list-chats [--config PATH] [--json] [--limit N] [--query TEXT]
+  deltachat-cli list-messages --chat CHAT_ID [--config PATH] [--json] [--limit N]
+  deltachat-cli send (--chat CHAT_ID | --to EMAIL) [--text TEXT] [--file PATH] [--name NAME] [--config PATH]
+  deltachat-cli delete-messages --chat CHAT_ID --ids ID[,ID...] [--for-all] [--config PATH]
+  deltachat-cli set-profile [--name NAME] [--avatar PATH] [--clear-avatar] [--config PATH]
+  deltachat-cli save-attachment --message MESSAGE_ID --path PATH [--config PATH]
+  deltachat-cli edit-message --message MESSAGE_ID --text TEXT [--config PATH]
+  deltachat-cli react --message MESSAGE_ID --reaction "EMOJI [EMOJI...]" [--config PATH]
+  deltachat-cli chat-info --chat CHAT_ID [--json] [--config PATH]
+  deltachat-cli create-group --name NAME [--protect] [--members EMAIL[,EMAIL...]] [--json] [--config PATH]
+  deltachat-cli rename-chat --chat CHAT_ID --name NAME [--json] [--config PATH]
+  deltachat-cli leave-group --chat CHAT_ID [--config PATH]
+  deltachat-cli join-qr --qr TEXT [--json] [--config PATH]
+  deltachat-cli show-qr [--chat CHAT_ID] [--svg-path PATH] [--json] [--config PATH]
+  deltachat-cli receive [--config PATH] [--json] [--timeout SECONDS] [--count N] [--no-mark-seen]
+  deltachat-cli create-chat --to EMAIL [--config PATH]
 
 Examples:
-  node cli.js list-chats
-  node cli.js list-messages --chat 42 --limit 20
-  node cli.js send --to friend@example.org --text "hello"
-  node cli.js send --chat 42 --file ./photo.jpg --text "latest"
-  node cli.js delete-messages --chat 42 --ids 101,102
-  node cli.js set-profile --name "New Name" --avatar ./avatar.jpg
-  node cli.js receive --json
+  deltachat-cli list-chats
+  deltachat-cli list-messages --chat 42 --limit 20
+  deltachat-cli send --to friend@example.org --text "hello"
+  deltachat-cli send --chat 42 --file ./photo.jpg --text "latest"
+  deltachat-cli delete-messages --chat 42 --ids 101,102
+  deltachat-cli set-profile --name "New Name" --avatar ./avatar.jpg
+  deltachat-cli save-attachment --message 101 --path ./saved.bin
+  deltachat-cli edit-message --message 101 --text "updated text"
+  deltachat-cli react --message 101 --reaction "👍"
+  deltachat-cli chat-info --chat 42
+  deltachat-cli create-group --name "Project" --members a@example.org,b@example.org
+  deltachat-cli rename-chat --chat 42 --name "New Group Name"
+  deltachat-cli leave-group --chat 42
+  deltachat-cli join-qr --qr "OPENPGP4FPR:..."
+  deltachat-cli show-qr --chat 42 --svg-path ./group-qr.svg
+  deltachat-cli receive --json
 `);
 }
 
@@ -40,7 +58,7 @@ function parseArgs(argv) {
     }
 
     const key = token.slice(2);
-    if (key === 'help' || key === 'json' || key === 'no-mark-seen' || key === 'for-all' || key === 'clear-avatar') {
+    if (key === 'help' || key === 'json' || key === 'no-mark-seen' || key === 'for-all' || key === 'clear-avatar' || key === 'protect') {
       args[key] = true;
       continue;
     }
@@ -104,6 +122,13 @@ function parseIdList(value, name) {
   }
 
   return items.map((item) => requireNumber(item, name));
+}
+
+function parseStringList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 async function createSession(configPath) {
@@ -306,6 +331,191 @@ async function setProfile(runtime, options) {
   console.log(`profile updated accountId=${profile.accountId} name=${profile.displayName || '-'} avatar=${profile.avatarPath || '-'}`);
 }
 
+async function saveAttachment(runtime, options) {
+  if (!options.message) {
+    throw new Error('save-attachment requires --message MESSAGE_ID');
+  }
+  if (!options.path) {
+    throw new Error('save-attachment requires --path PATH');
+  }
+
+  const saved = await runtime.saveAttachment(
+    requireNumber(options.message, 'message'),
+    options.path
+  );
+
+  console.log(`saved attachment from message ${saved.messageId} to ${saved.path}`);
+}
+
+async function editMessage(runtime, options) {
+  if (!options.message) {
+    throw new Error('edit-message requires --message MESSAGE_ID');
+  }
+  if (!options.text) {
+    throw new Error('edit-message requires --text TEXT');
+  }
+
+  const message = await runtime.editMessage(
+    requireNumber(options.message, 'message'),
+    options.text
+  );
+
+  console.log(`edited message ${message.id}: ${message.text}`);
+}
+
+async function reactToMessage(runtime, options) {
+  if (!options.message) {
+    throw new Error('react requires --message MESSAGE_ID');
+  }
+  if (options.reaction === undefined) {
+    throw new Error('react requires --reaction "EMOJI [EMOJI...]"');
+  }
+
+  const result = await runtime.reactToMessage(
+    requireNumber(options.message, 'message'),
+    options.reaction
+  );
+
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  console.log(`reacted to message ${result.messageId} with ${result.reaction.join(' ') || '(cleared)'}`);
+}
+
+async function showChatInfo(runtime, options) {
+  if (!options.chat) {
+    throw new Error('chat-info requires --chat CHAT_ID');
+  }
+
+  const info = await runtime.getChatInfo(requireNumber(options.chat, 'chat'));
+  const payload = {
+    id: info.id,
+    name: info.name,
+    protected: info.isProtected,
+    archived: info.archived,
+    pinned: info.pinned,
+    muted: info.isMuted,
+    canSend: info.canSend,
+    selfInGroup: info.selfInGroup,
+    freshMessages: info.freshMessageCounter,
+    ephemeralTimer: info.ephemeralTimer,
+    profileImage: info.profileImage,
+    contactIds: info.contactIds,
+    contacts: info.contacts.map((contact) => ({
+      id: contact.id,
+      name: contact.displayName || contact.name,
+      address: contact.address,
+      verified: contact.isVerified,
+    })),
+    mailingListAddress: info.mailingListAddress,
+    encryptionInfo: info.encryptionInfo,
+  };
+
+  if (options.json) {
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+
+  console.log(`#${payload.id} ${payload.name}`);
+  console.log(`  protected=${payload.protected} archived=${payload.archived} pinned=${payload.pinned} muted=${payload.muted} canSend=${payload.canSend}`);
+  console.log(`  selfInGroup=${payload.selfInGroup} fresh=${payload.freshMessages} ephemeralTimer=${payload.ephemeralTimer} profileImage=${payload.profileImage || '-'}`);
+  console.log(`  members=${payload.contacts.length} mailingList=${payload.mailingListAddress || '-'}`);
+  for (const contact of payload.contacts) {
+    console.log(`  - ${contact.id} ${contact.name || '-'} <${contact.address}> verified=${contact.verified}`);
+  }
+  if (payload.encryptionInfo) {
+    console.log('  encryption:');
+    for (const line of String(payload.encryptionInfo).split('\n')) {
+      if (line.trim()) {
+        console.log(`    ${line}`);
+      }
+    }
+  }
+}
+
+async function createGroup(runtime, options) {
+  if (!options.name) {
+    throw new Error('create-group requires --name NAME');
+  }
+
+  const info = await runtime.createGroup({
+    name: options.name,
+    protect: Boolean(options.protect),
+    members: parseStringList(options.members),
+  });
+
+  if (options.json) {
+    console.log(JSON.stringify(info, null, 2));
+    return;
+  }
+
+  console.log(`created group ${info.id} "${info.name}" members=${info.contacts.length} protected=${info.isProtected}`);
+}
+
+async function renameChat(runtime, options) {
+  if (!options.chat) {
+    throw new Error('rename-chat requires --chat CHAT_ID');
+  }
+  if (!options.name) {
+    throw new Error('rename-chat requires --name NAME');
+  }
+
+  const info = await runtime.renameChat(requireNumber(options.chat, 'chat'), options.name);
+  if (options.json) {
+    console.log(JSON.stringify(info, null, 2));
+    return;
+  }
+
+  console.log(`renamed chat ${info.id} to "${info.name}"`);
+}
+
+async function leaveGroup(runtime, options) {
+  if (!options.chat) {
+    throw new Error('leave-group requires --chat CHAT_ID');
+  }
+
+  const result = await runtime.leaveGroup(requireNumber(options.chat, 'chat'));
+  console.log(`left group ${result.chatId}`);
+}
+
+async function joinQr(runtime, options) {
+  if (!options.qr) {
+    throw new Error('join-qr requires --qr TEXT');
+  }
+
+  const result = await runtime.joinQr(options.qr);
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  console.log(`joined via QR kind=${result.kind} chat=${result.chatId}`);
+}
+
+async function showQr(runtime, options) {
+  const chatId = options.chat ? requireNumber(options.chat, 'chat') : null;
+  const payload = await runtime.getSecureJoinQr(chatId, Boolean(options['svg-path']));
+
+  if (options['svg-path']) {
+    const svgPath = path.resolve(options['svg-path']);
+    fs.writeFileSync(svgPath, payload.svg, 'utf8');
+    payload.svgPath = svgPath;
+    delete payload.svg;
+  }
+
+  if (options.json) {
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+
+  console.log(payload.qr);
+  if (payload.svgPath) {
+    console.log(`svg=${payload.svgPath}`);
+  }
+}
+
 async function createChat(runtime, options) {
   if (!options.to) {
     throw new Error('create-chat requires --to EMAIL');
@@ -439,6 +649,33 @@ async function main() {
         return;
       case 'set-profile':
         await setProfile(runtime, options);
+        return;
+      case 'save-attachment':
+        await saveAttachment(runtime, options);
+        return;
+      case 'edit-message':
+        await editMessage(runtime, options);
+        return;
+      case 'react':
+        await reactToMessage(runtime, options);
+        return;
+      case 'chat-info':
+        await showChatInfo(runtime, options);
+        return;
+      case 'create-group':
+        await createGroup(runtime, options);
+        return;
+      case 'rename-chat':
+        await renameChat(runtime, options);
+        return;
+      case 'leave-group':
+        await leaveGroup(runtime, options);
+        return;
+      case 'join-qr':
+        await joinQr(runtime, options);
+        return;
+      case 'show-qr':
+        await showQr(runtime, options);
         return;
       case 'receive':
         await receiveMessages(runtime, options);

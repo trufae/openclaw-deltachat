@@ -12,17 +12,19 @@ OPENCLAW_CONFIG="${OPENCLAW_CONFIG:-$OPENCLAW_DIR/openclaw.json}"
 
 mkdir -p "$TARGET_DIR"
 
+./node_modules/.bin/tsc -p "$SCRIPT_DIR/tsconfig.json"
+
 cp \
-  "$SCRIPT_DIR/channel.js" \
-  "$SCRIPT_DIR/plugin.js" \
-  "$SCRIPT_DIR/runtime.js" \
   "$SCRIPT_DIR/package.json" \
   "$SCRIPT_DIR/package-lock.json" \
+  "$SCRIPT_DIR/tsconfig.json" \
   "$SCRIPT_DIR/openclaw.plugin.json" \
   "$SCRIPT_DIR/deltachat-config.json" \
   "$SCRIPT_DIR/README.md" \
   "$TARGET_DIR/"
 
+rm -rf "$TARGET_DIR/dist"
+cp -R "$SCRIPT_DIR/dist" "$TARGET_DIR/dist"
 rm -rf "$TARGET_DIR/node_modules"
 cp -R "$SCRIPT_DIR/node_modules" "$TARGET_DIR/node_modules"
 rm -rf "$CHANNELS_DIR/delta-chat" "$CHANNELS_DIR/deltachat"

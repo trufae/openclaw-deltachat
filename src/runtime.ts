@@ -8,7 +8,7 @@ const { spawn } = require('child_process');
 const { StdioDeltaChat } = require('@deltachat/jsonrpc-client');
 
 const DEFAULT_CONFIG_FILE = 'deltachat-config.json';
-const DEFAULT_PLUGIN_DIR = path.resolve(__dirname);
+const DEFAULT_PLUGIN_DIR = path.resolve(__dirname, '..');
 const DEFAULT_RPC_SCRIPT = path.join(os.homedir(), '.venv', 'deltachat', 'bin', 'deltachat-rpc-server');
 const DEFAULT_PYTHON = path.join(os.homedir(), '.venv', 'deltachat', 'bin', 'python');
 function expandHome(value) {
@@ -267,6 +267,147 @@ class DeltaChatRuntime {
         ? updates.selfavatar
         : await this.client.rpc.getConfig(this.account.accountId, 'selfavatar'),
     };
+  }
+
+  async getChatInfo(chatId) {
+    await this.assertReady();
+
+    const resolvedChatId = Number(chatId || 0);
+    if (!Number.isInteger(resolvedChatId) || resolvedChatId <= 0) {
+      throw new Error('getChatInfo requires a valid chatId');
+    }
+
+    const fullChat = await this.client.rpc.getFullChatById(this.account.accountId, resolvedChatId);
+    let encryptionInfo = null;
+    try {
+      encryptionInfo = await this.client.rpc.getChatEncryptionInfo(this.account.accountId, resolvedChatId);
+    } catch (_error) {
+      encryptionInfo = null;
+    }
+
+    return {
+      ...fullChat,
+      encryptionInfo,
+    };
+  }
+
+  async createGroup(options = {}) {
+    await this.assertReady();
+
+    if (!options.name) {
+      throw new Error('createGroup requires name');
+    }
+
+    const chatId = await this.client.rpc.createGroupChat(
+      this.account.accountId,
+      options.name,
+      Boolean(options.protect)
+    );
+
+    const members = Array.isArray(options.members) ? options.members : [];
+    for (const member of members) {
+      const email = String(member || '').trim();
+      if (!email) {
+        continue;
+      }
+      const contactId = await this.client.rpc.createContact(this.account.accountId, email, null);
+      await this.client.rpc.addContactToChat(this.account.accountId, chatId, contactId);
+    }
+
+    return this.getChatInfo(chatId);
+  }
+
+  async renameChat(chatId, newName) {
+    await this.assertReady();
+
+    if (!newName) {
+      throw new Error('renameChat requires newName');
+    }
+
+    await this.client.rpc.setChatName(this.account.accountId, Number(chatId), newName);
+    return this.getChatInfo(chatId);
+  }
+
+  async leaveGroup(chatId) {
+    await this.assertReady();
+    await this.client.rpc.leaveGroup(this.account.accountId, Number(chatId));
+    return { chatId: Number(chatId), left: true };
+  }
+
+  async saveAttachment(messageId, destinationPath) {
+    await this.assertReady();
+
+    if (!destinationPath) {
+      throw new Error('saveAttachment requires destinationPath');
+    }
+
+    const resolvedPath = path.resolve(destinationPath);
+    await this.client.rpc.saveMsgFile(this.account.accountId, Number(messageId), resolvedPath);
+    return { messageId: Number(messageId), path: resolvedPath };
+  }
+
+  async editMessage(messageId, newText) {
+    await this.assertReady();
+
+    if (!newText) {
+      throw new Error('editMessage requires newText');
+    }
+
+    await this.client.rpc.sendEditRequest(this.account.accountId, Number(messageId), newText);
+    return this.client.rpc.getMessage(this.account.accountId, Number(messageId));
+  }
+
+  async reactToMessage(messageId, reaction) {
+    await this.assertReady();
+
+    const parts = Array.isArray(reaction)
+      ? reaction
+      : String(reaction || '').split(/\s+/).filter(Boolean);
+
+    await this.client.rpc.sendReaction(this.account.accountId, Number(messageId), parts);
+    const reactions = await this.client.rpc.getMessageReactions(this.account.accountId, Number(messageId));
+    return {
+      messageId: Number(messageId),
+      reaction: parts,
+      reactions,
+    };
+  }
+
+  async getSecureJoinQr(chatId, withSvg = false) {
+    await this.assertReady();
+
+    const resolvedChatId = chatId ? Number(chatId) : null;
+    if (withSvg) {
+      const [qr, svg] = await this.client.rpc.getChatSecurejoinQrCodeSvg(this.account.accountId, resolvedChatId);
+      return { chatId: resolvedChatId, qr, svg };
+    }
+
+    const qr = await this.client.rpc.getChatSecurejoinQrCode(this.account.accountId, resolvedChatId);
+    return { chatId: resolvedChatId, qr };
+  }
+
+  async joinQr(qrText) {
+    await this.assertReady();
+
+    if (!qrText) {
+      throw new Error('joinQr requires qrText');
+    }
+
+    const qr = await this.client.rpc.checkQr(this.account.accountId, qrText);
+
+    if (qr.kind === 'askVerifyGroup' || qr.kind === 'askVerifyContact') {
+      const chatId = await this.client.rpc.secureJoin(this.account.accountId, qrText);
+      await this.client.rpc.acceptChat(this.account.accountId, chatId);
+      return { kind: qr.kind, chatId };
+    }
+
+    if (qr.kind === 'fprOk' && qr.contact_id) {
+      const chatId = await this.client.rpc.createChatByContactId(this.account.accountId, qr.contact_id);
+      await this.client.rpc.acceptChat(this.account.accountId, chatId);
+      return { kind: qr.kind, chatId };
+    }
+
+    throw new Error(`QR kind not joinable via CLI: ${qr.kind}`);
   }
 
   async stop() {
