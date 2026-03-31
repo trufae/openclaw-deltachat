@@ -5,6 +5,7 @@
   "description": "Delta Chat channel plugin for OpenClaw",
   "main": "dist/openclaw/channel.js",
   "entry": "dist/openclaw/channel.js",
+  "channels": ["deltachat"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

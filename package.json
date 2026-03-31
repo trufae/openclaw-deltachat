@@ -1,5 +1,5 @@
 {
-  "name": "openclaw-deltachat",
+  "name": "deltachat",
   "version": "1.1.0",
   "description": "OpenClaw Delta Chat channel plugin",
   "main": "./dist/openclaw/channel.js",
@@ -33,6 +33,27 @@
   "devDependencies": {
     "@types/node": "^25.5.0",
     "typescript": "^4.9.5"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/openclaw/channel.js"
+    ],
+    "channel": {
+      "id": "deltachat",
+      "label": "Delta Chat",
+      "selectionLabel": "Delta Chat (Email)",
+      "detailLabel": "Delta Chat",
+      "docsPath": "/channels/deltachat",
+      "docsLabel": "deltachat",
+      "blurb": "Email-based E2E encrypted messaging.",
+      "aliases": ["dc"],
+      "order": 95
+    },
+    "install": {
+      "npmSpec": "@openclaw/deltachat",
+      "localPath": "extensions/deltachat",
+      "defaultChoice": "local"
+    }
   },
   "engines": {
     "node": ">=18.0.0"

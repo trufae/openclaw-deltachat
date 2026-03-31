@@ -17,14 +17,39 @@ export default {
   name: 'Delta Chat',
   version: '1.1.0',
   description: 'Delta Chat channel plugin for OpenClaw',
+  meta: {
+    label: 'Delta Chat',
+    selectionLabel: 'Delta Chat (Email)',
+    detailLabel: 'Delta Chat',
+    docsPath: '/channels/deltachat',
+    docsLabel: 'deltachat',
+    blurb: 'Email-based E2E encrypted messaging.',
+    aliases: ['dc'],
+    order: 95,
+  },
   config: {
-    enabled: true,
-    dmPolicy: 'pairing',
-    groupPolicy: 'allowlist',
-    configPath: '',
-    inviteLink: '',
-    rpcServerPath: '',
-    pythonPath: '',
+    listAccountIds: (cfg: any) => {
+      const section = cfg?.channels?.deltachat;
+      if (!section) return ['default'];
+      if (section.accounts && typeof section.accounts === 'object') {
+        return Object.keys(section.accounts);
+      }
+      return ['default'];
+    },
+    resolveAccount: (cfg: any, accountId?: string) => {
+      const section = cfg?.channels?.deltachat ?? {};
+      if (accountId && accountId !== 'default' && section.accounts?.[accountId]) {
+        return { ...section, ...section.accounts[accountId], accountId };
+      }
+      return { ...section, accountId: accountId ?? 'default' };
+    },
+    defaultAccountId: () => 'default',
+    isConfigured: (account: any) => {
+      return Boolean(account?.enabled || account?.configPath);
+    },
+    isEnabled: (account: any) => {
+      return account?.enabled !== false;
+    },
   },
 
   async init(gateway: any, channelConfig: any = {}) {
