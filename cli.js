@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { DeltaChatRuntime, loadRuntimeConfig } = require('./runtime.js');
 
 function printHelp() {
@@ -10,7 +12,8 @@ Usage:
   node cli.js status [--config PATH]
   node cli.js list-chats [--config PATH] [--json] [--limit N] [--query TEXT]
   node cli.js list-messages --chat CHAT_ID [--config PATH] [--json] [--limit N]
-  node cli.js send (--chat CHAT_ID | --to EMAIL) --text TEXT [--config PATH]
+  node cli.js send (--chat CHAT_ID | --to EMAIL) [--text TEXT] [--file PATH] [--name NAME] [--config PATH]
+  node cli.js delete-messages --chat CHAT_ID --ids ID[,ID...] [--for-all] [--config PATH]
   node cli.js receive [--config PATH] [--json] [--timeout SECONDS] [--count N] [--no-mark-seen]
   node cli.js create-chat --to EMAIL [--config PATH]
 
@@ -18,6 +21,8 @@ Examples:
   node cli.js list-chats
   node cli.js list-messages --chat 42 --limit 20
   node cli.js send --to friend@example.org --text "hello"
+  node cli.js send --chat 42 --file ./photo.jpg --text "latest"
+  node cli.js delete-messages --chat 42 --ids 101,102
   node cli.js receive --json
 `);
 }
@@ -33,7 +38,7 @@ function parseArgs(argv) {
     }
 
     const key = token.slice(2);
-    if (key === 'help' || key === 'json' || key === 'no-mark-seen') {
+    if (key === 'help' || key === 'json' || key === 'no-mark-seen' || key === 'for-all') {
       args[key] = true;
       continue;
     }
@@ -84,6 +89,19 @@ function summarizeText(value, max = 72) {
     return text;
   }
   return `${text.slice(0, max - 1)}…`;
+}
+
+function parseIdList(value, name) {
+  const items = String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (items.length === 0) {
+    throw new Error(`${name} must contain at least one message ID`);
+  }
+
+  return items.map((item) => requireNumber(item, name));
 }
 
 async function createSession(configPath) {
@@ -209,8 +227,8 @@ async function listMessages(runtime, options) {
 }
 
 async function sendMessage(runtime, options) {
-  if (!options.text) {
-    throw new Error('send requires --text TEXT');
+  if (!options.text && !options.file) {
+    throw new Error('send requires --text TEXT or --file PATH');
   }
 
   const accountId = runtime.account.accountId;
@@ -223,12 +241,22 @@ async function sendMessage(runtime, options) {
     chatId = await runtime.getOrCreateChatByEmail(options.to);
   }
 
+  let filePath = null;
+  let fileName = null;
+  if (options.file) {
+    filePath = path.resolve(options.file);
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+    fileName = options.name || path.basename(filePath);
+  }
+
   const [messageId] = await runtime.client.rpc.miscSendMsg(
     accountId,
     chatId,
-    options.text,
-    null,
-    null,
+    options.text || null,
+    filePath,
+    fileName,
     null,
     null
   );
@@ -237,6 +265,29 @@ async function sendMessage(runtime, options) {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   console.log(`sent message ${messageId} to chat ${chatId}`);
+}
+
+async function deleteMessages(runtime, options) {
+  if (!options.chat) {
+    throw new Error('delete-messages requires --chat CHAT_ID');
+  }
+  if (!options.ids) {
+    throw new Error('delete-messages requires --ids ID[,ID...]');
+  }
+
+  const accountId = runtime.account.accountId;
+  const chatId = requireNumber(options.chat, 'chat');
+  const messageIds = parseIdList(options.ids, 'ids');
+
+  await runtime.client.rpc.getFullChatById(accountId, chatId);
+
+  if (options['for-all']) {
+    await runtime.client.rpc.deleteMessagesForAll(accountId, messageIds);
+  } else {
+    await runtime.client.rpc.deleteMessages(accountId, messageIds);
+  }
+
+  console.log(`deleted ${messageIds.length} message(s) from chat ${chatId}${options['for-all'] ? ' for all recipients' : ''}`);
 }
 
 async function createChat(runtime, options) {
@@ -366,6 +417,9 @@ async function main() {
         return;
       case 'send':
         await sendMessage(runtime, options);
+        return;
+      case 'delete-messages':
+        await deleteMessages(runtime, options);
         return;
       case 'receive':
         await receiveMessages(runtime, options);

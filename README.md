@@ -52,6 +52,8 @@ node cli.js status
 node cli.js list-chats
 node cli.js list-messages --chat 42 --limit 20
 node cli.js send --to friend@example.org --text "hello from the CLI"
+node cli.js send --chat 42 --file ./photo.jpg --text "hello from the CLI"
+node cli.js delete-messages --chat 42 --ids 101,102
 node cli.js receive --json
 ```
 
@@ -61,6 +63,8 @@ Supported commands:
 - `list-chats [--query TEXT] [--limit N] [--json]`
 - `list-messages --chat CHAT_ID [--limit N] [--json]`
 - `send (--chat CHAT_ID | --to EMAIL) --text TEXT`
+- `send (--chat CHAT_ID | --to EMAIL) [--text TEXT] [--file PATH] [--name NAME]`
+- `delete-messages --chat CHAT_ID --ids ID[,ID...] [--for-all]`
 - `receive [--timeout SECONDS] [--count N] [--json] [--no-mark-seen]`
 - `create-chat --to EMAIL`
 
