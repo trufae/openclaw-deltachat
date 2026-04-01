@@ -104,6 +104,11 @@ interface InboundMessageParams {
   timestamp?: number;
   messageId?: number;
   id?: number;
+  file?: string | null;
+  fileName?: string | null;
+  fileMime?: string | null;
+  fileBytes?: number;
+  viewType?: string | null;
 }
 
 interface ProfileUpdateParams {
@@ -140,6 +145,11 @@ interface GatewayNotification {
   fromName: string | null;
   timestamp: number;
   messageId: number;
+  file?: string | null;
+  fileName?: string | null;
+  fileMime?: string | null;
+  fileBytes?: number;
+  viewType?: string | null;
   raw: T.Message | InboundMessageParams;
 }
 
@@ -385,17 +395,22 @@ class DeltaChatRuntime {
   }
 
   async handleMessage(message: InboundMessageParams = {}): Promise<null> {
-    if (!message || !message.text) {
+    if (!message || (!message.text && !message.file)) {
       return null;
     }
 
     await this.notifyGateway({
       chatId: message.chatId ?? message.chat_id ?? null,
-      text: message.text!,
+      text: message.text || '',
       from: message.from ?? null,
       fromName: message.fromName ?? null,
       timestamp: message.timestamp ?? Date.now(),
       messageId: message.messageId ?? message.id ?? 0,
+      file: message.file ?? null,
+      fileName: message.fileName ?? null,
+      fileMime: message.fileMime ?? null,
+      fileBytes: message.fileBytes,
+      viewType: message.viewType ?? null,
       raw: message,
     });
 
@@ -822,10 +837,10 @@ class DeltaChatRuntime {
         for (const messageId of messageIds) {
           const message = await this.client!.rpc.getMessage(this.account!.accountId, messageId);
           const senderAddress = message && message.sender ? message.sender.address : null;
-          if (!message || !message.text || (
-            senderAddress
-            && senderAddress.toLowerCase() === this.account.email.toLowerCase()
-          )) {
+          if (!message || (!message.text && !message.file)) {
+            continue;
+          }
+          if (senderAddress && senderAddress.toLowerCase() === this.account.email.toLowerCase()) {
             continue;
           }
 
@@ -833,11 +848,16 @@ class DeltaChatRuntime {
 
           await this.notifyGateway({
             chatId: message.chatId,
-            text: message.text,
+            text: message.text || '',
             from: senderAddress,
             fromName: message.sender ? (message.sender.displayName || message.sender.name || null) : null,
             timestamp: message.timestamp,
             messageId: message.id,
+            file: message.file ?? null,
+            fileName: message.fileName ?? null,
+            fileMime: message.fileMime ?? null,
+            fileBytes: message.fileBytes,
+            viewType: message.viewType as string ?? null,
             raw: message,
           });
         }

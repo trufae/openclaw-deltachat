@@ -120,18 +120,13 @@ interface GatewayContext {
 interface DeliverPayload {
   text?: string;
   body?: string;
-  file?: string;
-  filePath?: string;
-  fileName?: string;
-  name?: string;
+  mediaUrl?: string;
+  mediaUrls?: string[];
 }
 
 interface AttachmentFields {
-  File?: string | null;
-  FileName?: string | null;
-  FileMime?: string | null;
-  FileBytes?: number;
-  ViewType?: string | null;
+  MediaPath?: string | null;
+  MediaType?: string | null;
 }
 
 function getRuntime(channelConfig: Partial<ChannelConfig>): DeltaChatRuntime {
@@ -329,11 +324,8 @@ export default {
 
               const attachmentFields: AttachmentFields = {};
               if (hasFile) {
-                attachmentFields.File = message.file;
-                attachmentFields.FileName = message.fileName || null;
-                attachmentFields.FileMime = message.fileMime || null;
-                attachmentFields.FileBytes = message.fileBytes || 0;
-                attachmentFields.ViewType = message.viewType || null;
+                attachmentFields.MediaPath = message.file;
+                attachmentFields.MediaType = message.fileMime || 'application/octet-stream';
               }
 
               const ctxPayload = cr?.reply?.finalizeInboundContext?.({
@@ -385,10 +377,16 @@ export default {
                     ...replyPipeline,
                     deliver: async (payload: DeliverPayload) => {
                       const text = (payload?.text || payload?.body || '').trim() || null;
-                      const file = payload?.file || payload?.filePath || null;
-                      const fileName = payload?.fileName || payload?.name || null;
-                      if (text || file) {
-                        await instance.send({ chatId: message.chatId, text, file, fileName });
+                      const mediaUrls = payload?.mediaUrls ?? (payload?.mediaUrl ? [payload.mediaUrl] : []);
+                      if (mediaUrls.length > 0) {
+                        for (const mediaUrl of mediaUrls) {
+                          await instance.send({ chatId: message.chatId, text: null, file: mediaUrl });
+                        }
+                        if (text) {
+                          await instance.send({ chatId: message.chatId, text });
+                        }
+                      } else if (text) {
+                        await instance.send({ chatId: message.chatId, text });
                       }
                     },
                     onError: async (err: unknown, info: { kind?: string }) => {
