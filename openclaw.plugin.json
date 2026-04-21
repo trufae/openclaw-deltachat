@@ -38,39 +38,43 @@
     "name": "Delta Chat",
     "entry": "dist/openclaw/channel.js"
   },
+  "channelConfigs": {
+    "deltachat": {
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "configPath": {
+            "type": "string"
+          },
+          "inviteLink": {
+            "type": "string"
+          },
+          "dmPolicy": {
+            "type": "string"
+          },
+          "groupPolicy": {
+            "type": "string"
+          },
+          "rpcServerPath": {
+            "type": "string"
+          },
+          "pythonPath": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
   "contributes": {
     "channels": [
       {
         "id": "deltachat",
         "name": "Delta Chat",
-        "entry": "dist/openclaw/channel.js",
-        "configSchema": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "configPath": {
-              "type": "string"
-            },
-            "inviteLink": {
-              "type": "string"
-            },
-            "dmPolicy": {
-              "type": "string"
-            },
-            "groupPolicy": {
-              "type": "string"
-            },
-            "rpcServerPath": {
-              "type": "string"
-            },
-            "pythonPath": {
-              "type": "string"
-            }
-          }
-        }
+        "entry": "dist/openclaw/channel.js"
       }
     ]
   }
